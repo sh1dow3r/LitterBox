@@ -1,0 +1,76 @@
+/* app/static/css/style.css */
+/* Base Styles */
+body {
+    background: linear-gradient(to bottom right, #000000, #1a0000);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(220, 38, 38, 0.3);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(220, 38, 38, 0.5);
+}
+
+/* Upload Zone Styles */
+.drag-over {
+    @apply border-red-500 bg-red-500/5;
+    transform: scale(1.01);
+    transition: all 0.2s ease;
+}
+
+/* Cards Hover Effect */
+.analysis-card {
+    transition: all 0.2s ease;
+}
+
+.analysis-card:hover {
+    transform: translateY(-2px);
+}
+
+/* Monospace Font for Technical Data */
+.font-mono {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Animations */
+@keyframes pulse-red {
+    0%, 100% {
+        background-color: rgba(239, 68, 68, 0.1);
+    }
+    50% {
+        background-color: rgba(239, 68, 68, 0.2);
+    }
+}
+
+.animate-pulse-red {
+    animation: pulse-red 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    border: 3px solid rgba(239, 68, 68, 0.1);
+    border-top-color: rgb(239, 68, 68);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

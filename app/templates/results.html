@@ -1,0 +1,350 @@
+<!-- app/templates/results.html -->
+
+{% extends "base.html" %}
+
+{% block page_title %}Analysis Results{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-6">
+    <!-- Analysis Stage Indicator -->
+    <div id="stageIndicator" class="flex items-center space-x-4 mb-8">
+        <!-- Upload Stage -->
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-full bg-green-500/10 border-2 border-green-500 flex items-center justify-center">
+                <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <span class="text-gray-400 text-base">Upload</span>
+        </div>
+        <!-- Connecting Line -->
+        <div class="flex-1 h-0.5 bg-gray-800" id="stageLine"></div>
+        <!-- Analysis Stage -->
+        <div id="analysisStage" class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-full bg-red-500/10 border-2 border-red-500 flex items-center justify-center animate-pulse">
+                <span class="text-red-500 font-medium text-base">2</span>
+            </div>
+            <span class="text-gray-300 font-medium text-base">Analysis</span>
+        </div>
+    </div>
+
+
+
+    <!-- Status Card with Warning Modal -->
+    <div class="bg-black/60 backdrop-blur-sm rounded-xl border border-gray-800 shadow-lg mb-8">
+        <div class="p-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div id="statusIcon" class="p-3 bg-red-500/10 rounded-lg">
+                        <svg class="w-7 h-7 text-red-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-3">
+                            <h3 class="text-lg font-medium text-gray-100">{{ analysis_type|title }} Analysis</h3>
+                            <span class="px-3 py-1 bg-red-500/10 rounded text-red-500 text-sm font-medium" id="analysisTimer">00:00</span>
+                        </div>
+                        <div id="analysisStatus" class="text-base text-gray-500 mt-1"></div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <!-- Conditional Analysis Buttons -->
+
+                    {# 
+                        Display "Run Dynamic Analysis" button only if:
+                        - analysis_type is 'static'
+                        - file_hash exists
+                    #}
+                    {% if analysis_type == 'static' %}
+                        <button id="dynamicAnalysisButton" onclick="showDynamicWarning()" 
+                                class="px-5 py-2.5 text-base text-yellow-500 border border-yellow-900/20 rounded-lg hover:bg-yellow-500/10 transition-colors flex items-center space-x-2">
+                            <span>Run Dynamic Analysis</span>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </button>
+                    {% endif %}
+
+                    {# 
+                        Display "Run Static Analysis" button only if:
+                        - analysis_type is NOT 'static' (i.e., 'dynamic')
+                        - file_hash exists
+                    #}
+                    {% if analysis_type != 'static' %}
+                        <button id="staticAnalysisButton" onclick="window.location.href='/analyze/static/{{ file_hash }}'" 
+                                class="px-5 py-2.5 text-base text-yellow-500 border border-yellow-900/20 rounded-lg hover:bg-yellow-500/10 transition-colors">
+                            Run Static Analysis
+                        </button>
+                    {% endif %}
+
+                    <!-- New Analysis Button (Always Visible) -->
+                    <button onclick="window.location.href='/'" 
+                            class="px-5 py-2.5 text-base text-red-500 border border-red-900/20 rounded-lg hover:bg-red-500/10 transition-colors">
+                        New Analysis
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Dynamic Analysis Warning Modal -->
+    <div id="dynamicWarningModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-gray-900 rounded-xl border border-yellow-900/20 p-6 max-w-lg w-full mx-4">
+            <!-- Header -->
+            <div class="flex items-center space-x-3 mb-4">
+                <svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <h3 class="text-lg font-medium text-gray-100">Warning: Dynamic Analysis</h3>
+            </div>
+            
+            <!-- Content -->
+            <div class="text-gray-300 mb-6">
+                <p class="mb-4">About to execute the payload.</p>
+                <p class="text-yellow-500">Are you sure you want to proceed?</p>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex justify-end space-x-3">
+                <button onclick="hideDynamicWarning()" 
+                        class="px-4 py-2 text-gray-400 hover:text-white">
+                    Cancel
+                </button>
+                <button onclick="window.location.href='/analyze/dynamic/{{ file_hash }}'" 
+                        class="px-4 py-2 text-yellow-500 border border-yellow-900/20 rounded-lg hover:bg-yellow-500/10">
+                    Proceed
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <!-- Results Section -->
+    <div class="bg-black/60 backdrop-blur-sm rounded-xl border border-gray-800 shadow-lg">
+        <div class="p-6">
+            <!-- Tabs -->
+            <div class="flex space-x-6 border-b border-gray-700 pb-3 mb-6">
+                {% if analysis_type == 'static' %}
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="summaryTab">
+                    Summary
+                </button>
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="yaraResultsTab">
+                    YARA Scan
+                </button>
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="threatCheckResultsTab">
+                    ThreatCheck Scan
+                </button>
+                {% else %}
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="summaryTab">
+                    Summary
+                </button>
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="yaraMemoryTab">
+                    YARA Memory Scan
+                </button>
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="peSieveTab">
+                    PE-sieve Scan
+                </button>
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="monetaTab">
+                    Moneta Scan
+                </button>
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="patriotTab">
+                    Patriot Scan
+                </button>
+                <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="hsbTab">
+                    Hunt-SB Scan
+                </button>
+                {% endif %}
+            </div>
+            <!-- Tab Content -->
+            {% if analysis_type == 'static' %}
+            <!-- Summary Tab -->
+            <div id="summaryTab" class="tab-content">
+                <h3 class="text-xl font-medium text-gray-100">Analysis Summary</h3>
+                <p class="text-base text-gray-500 mb-6">Comprehensive overview of all scan results.</p>
+                <div id="summaryWrapper" class="space-y-4">
+
+                        <!-- NEW: Container for file or process details -->
+                    <div id="targetDetails" class="mb-6">
+                        <!-- We'll populate this dynamically via JS -->
+                    </div>
+                    <!-- Overall Status Grid -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                            <div class="text-sm text-gray-500">Overall Status</div>
+                            <div id="overallStatus" class="text-2xl font-semibold text-gray-300">Analyzing...</div>
+                        </div>
+                        <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                            <div class="text-sm text-gray-500">Total Detections</div>
+                            <div id="totalDetections" class="text-2xl font-semibold text-gray-300">0</div>
+                        </div>
+                        <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                            <div class="text-sm text-gray-500">Scan Duration</div>
+                            <div id="scanDuration" class="text-2xl font-semibold text-gray-300">00:00</div>
+                        </div>
+                    </div>
+                    <!-- Scanner Results Table -->
+                    <div class="bg-gray-900/30 rounded-lg border border-gray-800 overflow-hidden">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b border-gray-800">
+                                    <th class="px-6 py-3 text-left text-base font-medium text-gray-300">Scanner</th>
+                                    <th class="px-6 py-3 text-left text-base font-medium text-gray-300">Status</th>
+                                    <th class="px-6 py-3 text-left text-base font-medium text-gray-300">Detections</th>
+                                    <th class="px-6 py-3 text-left text-base font-medium text-gray-300">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scannerResultsBody" class="divide-y divide-gray-800">
+                                <!-- Scanner results will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other Static Tabs -->
+            <div id="yaraResultsTab" class="tab-content">
+                <h3 class="text-xl font-medium text-gray-100">YARA Scan Results</h3>
+                <p class="text-base text-gray-500 mb-6">Static pattern matching analysis results.</p>
+                <div id="yaraStats" class="flex space-x-4 mb-6"></div>
+                <div id="yaraResults" class="space-y-4"></div>
+            </div>
+            <div id="threatCheckResultsTab" class="tab-content">
+                <h3 class="text-xl font-medium text-gray-100">ThreatCheck Scan Results</h3>
+                <p class="text-base text-gray-500 mb-6">Windows Defender signature detection results.</p>
+                <div id="threatCheckStats" class="flex space-x-4 mb-6"></div>
+                <div id="threatCheckResults" class="space-y-4"></div>
+            </div>
+            {% else %}
+            <!-- Summary Tab for Dynamic Analysis -->
+            <div id="summaryTab" class="tab-content">
+                <h3 class="text-xl font-medium text-gray-100">Analysis Summary</h3>
+                <p class="text-base text-gray-500 mb-6">Comprehensive overview of all scan results.</p>
+                <div id="summaryWrapper" class="space-y-4">
+
+                        <!-- NEW: Container for file or process details -->
+                    <div id="targetDetails" class="mb-6">
+                        <!-- We'll populate this dynamically via JS -->
+                    </div>
+                    <!-- Overall Status Grid -->
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                            <div class="text-sm text-gray-500">Overall Status</div>
+                            <div id="overallStatus" class="text-2xl font-semibold text-gray-300">Analyzing...</div>
+                        </div>
+                        <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                            <div class="text-sm text-gray-500">Total Detections</div>
+                            <div id="totalDetections" class="text-2xl font-semibold text-gray-300">0</div>
+                        </div>
+                        <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                            <div class="text-sm text-gray-500">Scan Duration</div>
+                            <div id="scanDuration" class="text-2xl font-semibold text-gray-300">00:00</div>
+                        </div>
+                    </div>
+                    <!-- Scanner Results Table -->
+                    <div class="bg-gray-900/30 rounded-lg border border-gray-800 overflow-hidden">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b border-gray-800">
+                                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-300">Scanner</th>
+                                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-300">Status</th>
+                                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-300">Detections</th>
+                                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-300">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scannerResultsBody" class="divide-y divide-gray-800">
+                                <!-- Scanner results will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <!-- Dynamic Analysis Tabs -->
+            <div id="yaraMemoryTab" class="tab-content hidden">
+                <h3 class="text-xl font-medium text-gray-100">YARA Memory Scan Results</h3>
+                <p class="text-base text-gray-500 mb-6">Runtime pattern analysis results.</p>
+                <div id="yaraStats" class="flex space-x-4 mb-6"></div>
+                <div id="yaraResults" class="space-y-4"></div>
+            </div>
+            <div id="peSieveTab" class="tab-content hidden">
+                <h3 class="text-xl font-medium text-gray-100">PE-sieve Scan Results</h3>
+                <p class="text-base text-gray-500 mb-6">Process memory analysis results.</p>
+                <div id="peSieveResults" class="space-y-4"></div>
+            </div>
+            <div id="monetaTab" class="tab-content hidden">
+                <h3 class="text-xl font-medium text-gray-100">Moneta Scan Results</h3>
+                <p class="text-base text-gray-500 mb-6">Memory anomaly detection results.</p>
+                <div id="monetaResults" class="space-y-4"></div>
+            </div>
+            <div id="patriotTab" class="tab-content hidden">
+                <h3 class="text-xl font-medium text-gray-100">Patriot Scan Results</h3>
+                <p class="text-base text-gray-500 mb-6">Process memory integrity analysis results.</p>
+                <div id="patriotStats" class="flex space-x-4 mb-6"></div>
+                <div id="patriotResults" class="space-y-4"></div>
+            </div>
+            <div id="hsbTab" class="tab-content hidden">
+                <h3 class="text-xl font-medium text-gray-100">Hunt-Sleeping-Beacons Scan Results</h3>
+                <p class="text-base text-gray-500 mb-6">Thread behavior and sleeping beacon analysis results.</p>
+                <div id="hsbStats" class="flex space-x-4 mb-6"></div>
+                <div id="hsbResults" class="space-y-4"></div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <!-- Include scripts in the right order -->
+  <script src="{{ url_for('static', filename='js/results.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tabs = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function () {
+                const target = this.dataset.tab;
+
+                // Hide all tab content and deactivate all tabs
+                tabContents.forEach(content => content.classList.add('hidden'));
+                tabs.forEach(tab => tab.classList.remove('border-red-500', 'text-white'));
+
+                // Show target tab content and activate tab
+                document.getElementById(target).classList.remove('hidden');
+                this.classList.add('border-red-500', 'text-white');
+            });
+        });
+
+        // Activate the first tab by default
+        if (tabs.length > 0) {
+            tabs[0].click();
+        }
+    });
+    document.addEventListener('DOMContentLoaded', function () {
+        // Function to check if a string is purely numeric
+        function isNumeric(str) {
+            return /^\d+$/.test(str);
+        }
+
+        // Extract the identifier from the URL
+        const urlPath = window.location.pathname; // e.g., /analyze/dynamic/10648
+        const pathSegments = urlPath.split('/').filter(segment => segment.length > 0);
+        const identifier = pathSegments[pathSegments.length - 1]; // Last segment
+
+        // Determine if the identifier is numeric (PID) or alphanumeric (File Hash)
+        const isPID = isNumeric(identifier);
+
+        // If it's a PID scan, hide the "Run Static Analysis" button
+        if (isPID) {
+            const staticButton = document.getElementById('staticAnalysisButton');
+            if (staticButton) {
+                staticButton.style.display = 'none';
+            }
+        }
+    });
+</script>
+{% endblock %}

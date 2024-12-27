@@ -1,0 +1,65 @@
+# config/config.yaml
+application:
+  name: "LitterBox"
+  host: "127.0.0.1"
+  port: 1337
+  debug: true
+
+upload:
+  allowed_extensions:
+    - exe
+    - dll
+    - bin
+    - docx
+    - xlsx
+    - lnk
+    - sys
+  max_file_size: 16777216  # 16MB in bytes
+  upload_folder: "Uploads"
+
+analysis:
+  static:
+    yara:
+      enabled: true
+      tool_path: ".\\Scanners\\Yara\\yara64.exe"
+      command: "{tool_path} -s -m {rules_path} {file_path}"
+      rules_path: ".\\Scanners\\Yara\\rules\\LitterBox.yar"
+      timeout: 120
+    
+    threatcheck:
+      enabled: true
+      tool_path: ".\\Scanners\\ThreatCheck\\CheckPlz.exe"
+      command: "{tool_path} -m -r -f {file_path}"
+      timeout: 120
+
+  dynamic:
+    yara:
+      enabled: true
+      tool_path: ".\\Scanners\\Yara\\yara64.exe"
+      command: "{tool_path} -s -m {rules_path} {pid}"
+      rules_path: ".\\Scanners\\Yara\\rules\\LitterBox.yar"
+      timeout: 120
+
+    pe_sieve:
+      enabled: true
+      tool_path: ".\\Scanners\\PE-Sieve\\pe-sieve.exe"
+      command: "{tool_path} /pid {pid} /threads /data 3 /iat 3 /obfusc 3 /shellc 3 /dir .\\Scanners\\PE-Sieve\\analysis "
+      timeout: 120
+
+    moneta:
+      enabled: true
+      tool_path: ".\\Scanners\\Moneta\\Moneta64.exe"
+      command: "{tool_path} -m ioc -p {pid} --option from-base"
+      timeout: 120
+    
+    patriot:
+      enabled: true
+      tool_path: ".\\Scanners\\Patriot\\Patriot.exe"
+      command: "{tool_path} -p {pid}"
+      timeout: 120
+
+    hsb:
+      enabled: true
+      tool_path: ".\\Scanners\\HuntSleepingBeacons\\Hunt-Sleeping-Beacons.exe"
+      command: "{tool_path} -p {pid}"
+      timeout: 120
