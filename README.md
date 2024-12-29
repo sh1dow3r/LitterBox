@@ -1,12 +1,10 @@
 # LitterBox
 Your malware's favorite sandbox - where red teamers come to bury their payloads.
-
 A sandbox environment designed specifically for malware development and payload testing. 
-
-This framework enables red teamers to validate evasion techniques, assess detection signatures, and test implant behavior before deployment in the field. 
+This Web Application enables red teamers to validate evasion techniques, assess detection signatures, and test implant behavior before deployment in the field. 
 Think of it as your personal LitterBox for perfecting your tradecraft without leaving traces on production detection systems.
-
-The platform provides automated analysis through an intuitive web interface, monitoring process behavior and generating comprehensive runtime analysis reports. This ensures your payloads work as intended before execution in target environments.
+The platform provides automated analysis through an intuitive web interface, monitoring process behavior and generating comprehensive runtime analysis reports. 
+This ensures your payloads work as intended before execution in target environments.
 
 
 ## Core Features
