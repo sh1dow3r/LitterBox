@@ -137,7 +137,7 @@ The `config.yml` file controls:
 This project incorporates the following open-source components and acknowledges their authors:
 
 
-- [Elastic]https://github.com/elastic/protections-artifacts/tree/main/yara()
+- [Elastic](https://github.com/elastic/protections-artifacts/tree/main/yara)
 - [hasherezade](https://github.com/hasherezade/pe-sieve)
 - [Forrest Orr](https://github.com/forrest-orr/moneta)
 - [rasta-mouse](https://github.com/rasta-mouse/ThreatCheck)
