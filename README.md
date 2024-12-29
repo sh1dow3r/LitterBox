@@ -139,36 +139,6 @@ from .base import DynamicAnalyzer
 
 ### Step 2: Create Your Analyzer Class
 
-#### Static Analyzer (for files):
-
-```python
-class MyFileAnalyzer(StaticAnalyzer):
-    def analyze(self, file_path):
-        try:
-            tool_config = self.config['analysis']['static']['my_tool']
-            command = tool_config['command'].format(
-                tool_path=tool_config['tool_path'],
-                file_path=file_path
-            )
-            
-            process = subprocess.Popen(command, shell=True,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                universal_newlines=True
-            )
-            
-            stdout, stderr = process.communicate()
-            
-            self.results = {
-                'status': 'completed',
-                'findings': self._parse_output(stdout),
-                'errors': stderr
-            }
-        except Exception as e:
-            self.results = {
-                'status': 'error',
-                'error': str(e)
-            }
-```
 
 #### Dynamic Analyzer (for PIDs):
 
