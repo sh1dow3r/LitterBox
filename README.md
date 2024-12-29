@@ -125,8 +125,6 @@ LitterBox supports two types of analyzers:
 
 ---
 
-## Basic Setup
-
 ### Step 1: Choose Your Analyzer Type
 
 Select the type of analyzer based on the target:
