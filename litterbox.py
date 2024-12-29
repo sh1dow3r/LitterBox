@@ -12,7 +12,6 @@ def is_running_as_admin():
         return os.geteuid() == 0  # Unix/Linux admin check (root user)
 
 app = create_app()
-app.name = 'LitterBox'
 
 if __name__ == '__main__':
     if not is_running_as_admin():

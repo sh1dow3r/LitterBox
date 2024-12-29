@@ -1,3 +1,4 @@
+# app/__init__.py
 from flask import Flask
 import yaml
 import os
@@ -13,7 +14,8 @@ def create_app():
     # Load configuration from YAML
     config = load_config()
     app.config.update(config)
-    
+    app.name = config['application']['name']
+
     # Ensure upload and temp directories exist
     for folder in [config['upload']['upload_folder']]:
         os.makedirs(folder, exist_ok=True)

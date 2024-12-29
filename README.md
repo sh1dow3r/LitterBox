@@ -13,53 +13,59 @@ The platform provides automated analysis through an intuitive web interface, mon
 
 This ensures your payloads work as intended before execution in target environments.
 
-## Core Features
+## Features
 
 ### Initial Analysis
-Upon file upload, LitterBox automatically performs:
-- File identification and hashing (MD5, SHA256)
-- Shannon entropy calculation
-- File type detection and MIME analysis
+- File identification with multiple hashing algorithms (MD5, SHA256)
+- Shannon entropy calculation for encryption detection
+- Advanced file type detection and MIME analysis
 - Original filename preservation
-- Upload timestamp recording
+- Upload timestamp tracking
 
 ### PE File Analysis
-For executables (.exe, .dll, .sys):
-- File type detection (PE32/PE32+)
-- Machine type identification
-- Compilation timestamp extraction
-- Subsystem identification
-- Entry point location
-- Section enumeration
-- Import DLL listing
+For Windows executables (.exe, .dll, .sys):
+- PE file type detection (PE32/PE32+)
+- Machine architecture identification
+- Compilation timestamp analysis
+- Subsystem classification
+- Entry point detection
+- Section enumeration and analysis
+- Import DLL dependency mapping
 
 ### Office Document Analysis
-For Office files (.docx, .xlsx, .doc, .xls, .xlsm, .docm):
-- Macro detection
-- VBA code analysis (if macros present)
+For Microsoft Office files (.docx, .xlsx, .doc, .xls, .xlsm, .docm):
+- Macro detection and extraction
+- VBA code analysis
+- Hidden content identification
 
-## Analysis Options
+## Analysis Capabilities
 
-### Static Analysis
-- Scanning binaries against known detection signatures and rulesets
-- Analyzing file characteristics and entropy levels for suspicious indicators
-- Strings analyzing to locate strings that can serve as suspicious indicators
+### Static Analysis Engine
+- Signature-based detection using industry-standard rulesets
+- Binary entropy analysis
+- String extraction and analysis
+- Pattern matching for suspicious indicators
 
-### Dynamic Analysis
-Supports two modes: File, PID
-- Scanning executable files and processes to identify suspicious behavioral characteristics  
-- Inspecting memory regions to detect anomalous content and hidden payloads
-- Analyzing process hollowing and injection techniques for detection artifacts 
-- Monitoring sleep patterns of a beacon processes
-- Validating integrity of PE files and detecting runtime modifications
+### Dynamic Analysis Engine
+Available in two modes:
+- File Analysis Mode
+- Process ID (PID) Analysis Mode
+
+Features include:
+- Behavioral monitoring
+- Memory region inspection
+- Process hollowing detection
+- Injection technique analysis
+- Sleep pattern monitoring
+- PE integrity verification
 
 ## Integrated Tools
 
-### Static Analyzers
+### Static Analysis Suite
 - [YARA](https://github.com/elastic/protections-artifacts/tree/main/yara) - Pattern matching and signature detection
 - [CheckPlz](https://github.com/BlackSnufkin/CheckPlz) - AV detection testing
 
-### Dynamic Analyzers
+### Dynamic Analysis Suite
 - [YARA](https://github.com/elastic/protections-artifacts/tree/main/yara) (memory scanning) - Runtime pattern detection
 - [PE-Sieve](https://github.com/hasherezade/pe-sieve) - Process and memory inspection
 - [Moneta](https://github.com/forrest-orr/moneta) - Sleep pattern analysis
@@ -82,31 +88,33 @@ GET  /health                  # System health and tool status check
 POST /cleanup                # Clean analysis artifacts and uploads
 POST /validate/<pid>         # Validate process accessibility
 ```
+## Installation
 
-## Usage
-### Setup
+### Prerequisites
+- Python 3.8 or higher
+- Administrator privileges (required for certain features)
+- Windows operating system (required for specific analyzers)
+
+### Setup Steps
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-repo/litterbox.git
-   cd litterbox
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Edit `config/config.yaml` to specify file paths and tool settings.
+```bash
+git clone https://github.com/your-repo/litterbox.git
+cd litterbox
+```
 
+2. Install required dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-### Run
+### Running LitterBox
 
 ```bash
 python litterbox.py
 ```
 
-- Accessible at `http://127.0.0.1:1337`
-- Requires admin privileges for some features.
-
+The web interface will be available at: `http://127.0.0.1:1337`
 
 ## Configuration
 
