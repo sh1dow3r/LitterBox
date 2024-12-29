@@ -134,13 +134,12 @@ The `config.yml` file controls:
 
 ## Acknowledgments
 
-This project incorporates the following open source components:
+This project incorporates the following open-source components and acknowledges their authors:
 
-| Tool | Author | Repository |
-|------|---------|------------|
-| YARA Rules | Elastic | [elastic/protections-artifacts](https://github.com/elastic/protections-artifacts/tree/main/yara) |
-| PE-Sieve | hasherezade | [hasherezade/pe-sieve](https://github.com/hasherezade/pe-sieve) |
-| Moneta | Forrest Orr | [forrest-orr/moneta](https://github.com/forrest-orr/moneta) |
-| ThreatCheck | rasta-mouse | [rasta-mouse/ThreatCheck](https://github.com/rasta-mouse/ThreatCheck) |
-| Hunt-Sleeping-Beacons | thefLink | [thefLink/Hunt-Sleeping-Beacons](https://github.com/thefLink/Hunt-Sleeping-Beacons) |
-| Patriot | joe-desimone | [joe-desimone/patriot](https://github.com/joe-desimone/patriot) |
+
+- [Elastic]https://github.com/elastic/protections-artifacts/tree/main/yara()
+- [hasherezade](https://github.com/hasherezade/pe-sieve)
+- [Forrest Orr](https://github.com/forrest-orr/moneta)
+- [rasta-mouse](https://github.com/rasta-mouse/ThreatCheck)
+- [thefLink](https://github.com/thefLink/Hunt-Sleeping-Beacons)
+- [joe-desimone](https://github.com/joe-desimone/patriot)
