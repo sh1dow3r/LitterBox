@@ -54,15 +54,15 @@ Supports two modes: File, PID
 ## Integrated Tools
 
 ### Static Analyzers
-- YARA - Pattern matching and signature detection
-- CheckPlz - AV detection testing
+- [YARA](https://github.com/elastic/protections-artifacts/tree/main/yara) - Pattern matching and signature detection
+- [CheckPlz](https://github.com/BlackSnufkin/CheckPlz) - AV detection testing
 
 ### Dynamic Analyzers
-- YARA (memory scanning) - Runtime pattern detection
-- PE-Sieve - Process and memory inspection
-- Moneta - Sleep pattern analysis
-- Patriot - Runtime monitoring
-- Hunt-Sleeping-Beacons - Beacon behavior analysis
+- [YARA](https://github.com/elastic/protections-artifacts/tree/main/yara) (memory scanning) - Runtime pattern detection
+- [PE-Sieve](https://github.com/hasherezade/pe-sieve) - Process and memory inspection
+- [Moneta](https://github.com/forrest-orr/moneta) - Sleep pattern analysis
+- [Patriot](https://github.com/BlackSnufkin/patriot) - Runtime monitoring
+- [Hunt-Sleeping-Beacons](https://github.com/thefLink/Hunt-Sleeping-Beacons) - Beacon behavior analysis
 
 ## API Reference
 
@@ -81,11 +81,36 @@ POST /cleanup                # Clean analysis artifacts and uploads
 POST /validate/<pid>         # Validate process accessibility
 ```
 
+## Usage
+### Setup Instructions
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-repo/litterbox.git
+   cd litterbox
+   ```
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Edit `config/config.yaml` to specify file paths and tool settings.
+
+
+### Running the Application
+
+```bash
+python litterbox.py
+```
+
+- Accessible at `http://127.0.0.1:1337`
+- Requires admin privileges for some features.
+
+
 ## Configuration
 
 The `config.yml` file controls:
 - Upload directory and allowed extensions
-- Analysis tool paths and options
+- Analysis tool paths and Command options
 - YARA rule locations
 - Analysis timeouts and limits
 
@@ -239,26 +264,18 @@ def _initialize_analyzers(self):
 ### Add Your Analyzer Tab in `results.html`
 
 ```html
-<!-- For Static Analysis -->
-{% if analysis_type == 'static' %}
-    <button class="tab-button text-base px-4 py-2" data-tab="myToolTab">
-        My Tool Scan
-    </button>
-    <div id="myToolTab" class="tab-content">
-        <div id="myToolStats"></div>
-        <div id="myToolResults"></div>
-    </div>
+<!-- Add the tab button -->
+<button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="myToolResultsTab">
+    My Tool
+</button>
 
-<!-- For Dynamic Analysis -->
-{% else %}
-    <button class="tab-button text-base px-4 py-2" data-tab="myToolTab">
-        My Tool Scan
-    </button>
-    <div id="myToolTab" class="tab-content">
-        <div id="myToolStats"></div>
-        <div id="myToolResults"></div>
-    </div>
-{% endif %}
+<!-- Add the content section -->
+<div id="myToolResultsTab" class="tab-content hidden">
+    <h3 class="text-xl font-medium text-gray-100">My Tool Analysis Results</h3>
+    <p class="text-base text-gray-500 mb-6">Details of the static analysis performed by My Tool.</p>
+    <div id="myToolStats" class="flex space-x-4 mb-6"></div>
+    <div id="myToolResults" class="space-y-4"></div>
+</div>
 ```
 
 ### Create Your Renderer in `results.js`
