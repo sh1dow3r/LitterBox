@@ -16,7 +16,7 @@ app.name = 'LitterBox'
 
 if __name__ == '__main__':
     if not is_running_as_admin():
-        print("This script requires administrative privileges. Please run as an administrator.")
+        print("[!] This script requires administrative privileges. Please run as an administrator.")
         exit(1)
 
     app.run(

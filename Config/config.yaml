@@ -26,9 +26,9 @@ analysis:
       rules_path: ".\\Scanners\\Yara\\rules\\LitterBox.yar"
       timeout: 120
     
-    threatcheck:
+    checkplz:
       enabled: true
-      tool_path: ".\\Scanners\\ThreatCheck\\CheckPlz.exe"
+      tool_path: ".\\Scanners\\CheckPlz\\CheckPlz.exe"
       command: "{tool_path} -m -r -f {file_path}"
       timeout: 120
 

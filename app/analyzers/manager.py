@@ -1,6 +1,6 @@
 # app/analyzers/manager.py
 from .static.yara_analyzer import YaraStaticAnalyzer
-from .static.threatcheck_analyzer import ThreatCheckAnalyzer
+from .static.checkplz_analyzer import CheckPlzAnalyzer
 from .dynamic.yara_analyzer import YaraDynamicAnalyzer
 from .dynamic.pe_sieve_analyzer import PESieveAnalyzer
 from .dynamic.moneta_analyzer import MonetaAnalyzer
@@ -22,8 +22,8 @@ class AnalysisManager:
         # Static analyzers
         if self.config['analysis']['static']['yara']['enabled']:
             self.static_analyzers['yara'] = YaraStaticAnalyzer(self.config)
-        if self.config['analysis']['static']['threatcheck']['enabled']:
-            self.static_analyzers['threatcheck'] = ThreatCheckAnalyzer(self.config)
+        if self.config['analysis']['static']['checkplz']['enabled']:
+            self.static_analyzers['checkplz'] = CheckPlzAnalyzer(self.config)
 
         # Dynamic analyzers
         if self.config['analysis']['dynamic']['yara']['enabled']:

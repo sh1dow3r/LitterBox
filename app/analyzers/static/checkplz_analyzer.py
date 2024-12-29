@@ -1,17 +1,17 @@
-# app/analyzers/static/threatcheck_analyzer.py
+# app/analyzers/static/checkplz_analyzer.py
 
 import subprocess
 import re
 import os
 from .base import StaticAnalyzer
 
-class ThreatCheckAnalyzer(StaticAnalyzer):
+class CheckPlzAnalyzer(StaticAnalyzer):
     def analyze(self, file_path):
         """
         Analyzes a file using ThreatCheck tool specified in the config.
         """
         try:
-            tool_config = self.config['analysis']['static']['threatcheck']
+            tool_config = self.config['analysis']['static']['checkplz']
             command = tool_config['command'].format(
                 tool_path=os.path.abspath(tool_config['tool_path']),
                 file_path=os.path.abspath(file_path)
@@ -33,7 +33,7 @@ class ThreatCheckAnalyzer(StaticAnalyzer):
                 'status': 'completed' if process.returncode == 0 else 'failed',
                 'scan_info': {
                     'target': file_path,
-                    'tool': 'ThreatCheck'
+                    'tool': 'CheckPlz'
                 },
                 'findings': results,
                 'errors': stderr if stderr else None

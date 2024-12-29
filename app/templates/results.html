@@ -44,7 +44,7 @@
                     <div>
                         <div class="flex items-center space-x-3">
                             <h3 class="text-lg font-medium text-gray-100">{{ analysis_type|title }} Analysis</h3>
-                            <span class="px-3 py-1 bg-red-500/10 rounded text-red-500 text-sm font-medium" id="analysisTimer">00:00</span>
+                            <span class="px-3 py-1 bg-red-500/10 rounded text-red-500 text-sm font-medium" id="analysisTimer" style="display: none;">00:00</span>
                         </div>
                         <div id="analysisStatus" class="text-base text-gray-500 mt-1"></div>
                     </div>
@@ -132,10 +132,10 @@
                     Summary
                 </button>
                 <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="yaraResultsTab">
-                    YARA Scan
+                    YARA
                 </button>
                 <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="threatCheckResultsTab">
-                    ThreatCheck Scan
+                    CheckPlz
                 </button>
                 {% else %}
                 <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="summaryTab">
@@ -145,16 +145,16 @@
                     YARA Memory Scan
                 </button>
                 <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="peSieveTab">
-                    PE-sieve Scan
+                    PE-sieve
                 </button>
                 <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="monetaTab">
-                    Moneta Scan
+                    Moneta
                 </button>
                 <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="patriotTab">
-                    Patriot Scan
+                    Patriot
                 </button>
                 <button class="tab-button text-base px-4 py-2 text-gray-300 hover:text-white border-b-2" data-tab="hsbTab">
-                    Hunt-SB Scan
+                    Hunt-SB
                 </button>
                 {% endif %}
             </div>
@@ -212,7 +212,7 @@
                 <div id="yaraResults" class="space-y-4"></div>
             </div>
             <div id="threatCheckResultsTab" class="tab-content">
-                <h3 class="text-xl font-medium text-gray-100">ThreatCheck Scan Results</h3>
+                <h3 class="text-xl font-medium text-gray-100">CheckPlz Scan Results</h3>
                 <p class="text-base text-gray-500 mb-6">Windows Defender signature detection results.</p>
                 <div id="threatCheckStats" class="flex space-x-4 mb-6"></div>
                 <div id="threatCheckResults" class="space-y-4"></div>

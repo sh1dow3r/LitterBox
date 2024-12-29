@@ -636,12 +636,12 @@ const tools = {
             }
     },
 
-    threatcheck: {
+    checkplz: {
         element: document.getElementById('threatCheckResults'),
         statsElement: document.getElementById('threatCheckStats'),
         render: (results) => {
             if (results.status === 'error') {
-                tools.threatcheck.element.innerHTML = `
+                tools.checkplz.element.innerHTML = `
                     <div class="bg-red-500/10 border border-red-900/20 rounded-lg p-4">
                         <div class="flex items-center space-x-2 text-red-500">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -658,7 +658,7 @@ const tools = {
             const isClean = !findings.initial_threat && !scanResults.detection_offset;
 
             // Stats Section
-            tools.threatcheck.statsElement.innerHTML = `
+            tools.checkplz.statsElement.innerHTML = `
                 <div class="grid grid-cols-3 gap-4 mb-6">
                     <div class="bg-gray-900/30 rounded-lg border ${isClean ? 'border-green-500/30' : 'border-red-500/30'} p-4">
                         <div class="text-sm text-gray-500">Status</div>
@@ -758,7 +758,7 @@ const tools = {
                 }
             }
 
-            tools.threatcheck.element.innerHTML = html;
+            tools.checkplz.element.innerHTML = html;
         }
     },
 
@@ -1241,13 +1241,13 @@ const tools = {
             }
 
             // ThreatCheck results
-            if (results.threatcheck) {
-                const findings = results.threatcheck.findings || {};
+            if (results.checkplz) {
+                const findings = results.checkplz.findings || {};
                 const hasDetection = findings.scan_results?.detection_offset;
                 if (hasDetection) totalDetections++;
                 rows.push(`
                     <tr>
-                        <td class="px-6 py-4 text-base text-gray-300">ThreatCheck</td>
+                        <td class="px-6 py-4 text-base text-gray-300">CheckPlz</td>
                         <td class="px-6 py-4">
                             <span class="px-2 py-1 text-base rounded ${hasDetection ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}">
                                 ${hasDetection ? 'Suspicious' : 'Clean'}
