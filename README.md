@@ -42,7 +42,7 @@ Supports two modes: File, PID
 - Scanning executable files and processes to identify suspicious behavioral characteristics  
 - Inspecting memory regions to detect anomalous content and hidden payloads
 - Analyzing process hollowing and injection techniques for detection artifacts 
-- Monitoring sleep patterns of beacon processes
+- Monitoring sleep patterns and network behavior of beacon processes
 - Validating integrity of PE files and detecting runtime modifications
 
 ## Integrated Tools
