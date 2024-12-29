@@ -59,7 +59,7 @@ Supports two modes: File, PID
 ## Integrated Analyzers
 ### Static
 - YARA
-- ThreatCheck
+- CheckPlz (ThreatCheck)
 
 ### Dynamic
 - YARA (memory scanning)
