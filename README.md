@@ -82,7 +82,7 @@ POST /validate/<pid>         # Validate process accessibility
 ```
 
 ## Usage
-### Setup Instructions
+### Setup
 
 1. Clone the repository:
    ```bash
@@ -96,7 +96,7 @@ POST /validate/<pid>         # Validate process accessibility
 3. Edit `config/config.yaml` to specify file paths and tool settings.
 
 
-### Running the Application
+### Run
 
 ```bash
 python litterbox.py
