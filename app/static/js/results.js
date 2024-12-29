@@ -1127,7 +1127,7 @@ const tools = {
             // 1) Grab the new container where we'll show file/process info
             const targetDetailsEl = document.getElementById('targetDetails');
             
-            const filePath = results.threatcheck?.findings?.scan_results?.file_path || 
+            const filePath = results.checkplz?.findings?.scan_results?.file_path || 
                            
                            'No file path available';
             
