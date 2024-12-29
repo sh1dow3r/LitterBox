@@ -12,8 +12,6 @@ Upon file upload, LitterBox automatically performs:
 - Original filename preservation
 - Upload timestamp recording
 
-### Analysis Options
-
 #### PE File Analysis
 For executables (.exe, .dll, .sys):
 - File type detection (PE32/PE32+)
@@ -29,22 +27,20 @@ For Office files (.docx, .xlsx, .doc, .xls, .xlsm, .docm):
 - Macro detection
 - VBA code analysis (if macros present)
 
+### Analysis Options
+
 #### Static Analysis
-# Static Analysis
 - Scanning binaries against known detection signatures and rulesets
 - Analyzing file characteristics and entropy levels for suspicious indicators
-- Extracting and validating metadata from executables and documents
-- Evaluating PE headers and structures for signs of manipulation
-
+- Strings analyzing to locate strings that can serve as suspicious indicators
 
 #### Dynamic Analysis
-Supports two modes:
+Supports two modes: File, PID 
 - Scanning executable files and processes to identify suspicious behavioral characteristics  
 - Inspecting memory regions to detect anomalous content and hidden payloads
 - Analyzing process hollowing and injection techniques for detection artifacts 
 - Monitoring sleep patterns and network behavior of beacon processes
 - Validating integrity of PE files and detecting runtime modifications
-
 
 ## API Endpoints
 
@@ -58,3 +54,24 @@ Supports two modes:
 - `GET /health` - System health and tool status check
 - `POST /cleanup` - Clean analysis artifacts and uploads
 - `POST /validate/<pid>` - Validate process accessibility
+
+
+## Integrated Analyzers
+### Static
+- YARA
+- ThreatCheck
+
+### Dynamic
+- YARA (memory scanning)
+- PE-Sieve
+- Moneta
+- Patriot
+- Hunt-Sleeping-Beacons
+
+## Configuration
+
+The `config.yml` file controls:
+- Upload directory and allowed extensions
+- Analysis tool paths and options
+- YARA rule locations
+- Analysis timeouts and limits
