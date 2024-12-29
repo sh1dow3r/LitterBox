@@ -99,8 +99,8 @@ POST /validate/<pid>         # Validate process accessibility
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-repo/litterbox.git
-cd litterbox
+git clone https://github.com/BlackSnufkin/LitterBox.git
+cd LitterBox
 ```
 
 2. Install required dependencies:
