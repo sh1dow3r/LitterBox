@@ -48,14 +48,14 @@ Supports two modes: File, PID
 - Scanning executable files and processes to identify suspicious behavioral characteristics  
 - Inspecting memory regions to detect anomalous content and hidden payloads
 - Analyzing process hollowing and injection techniques for detection artifacts 
-- Monitoring sleep patterns and network behavior of beacon processes
+- Monitoring sleep patterns of a beacon processes
 - Validating integrity of PE files and detecting runtime modifications
 
 ## Integrated Tools
 
 ### Static Analyzers
 - YARA - Pattern matching and signature detection
-- CheckPlz (ThreatCheck) - AV detection testing
+- CheckPlz - AV detection testing
 
 ### Dynamic Analyzers
 - YARA (memory scanning) - Runtime pattern detection
@@ -88,3 +88,243 @@ The `config.yml` file controls:
 - Analysis tool paths and options
 - YARA rule locations
 - Analysis timeouts and limits
+
+
+
+## Creating Your Own Analyzer
+
+LitterBox supports two types of analyzers:
+
+- **Static Analyzers**: Analyze files directly (e.g., exe, dll, docs).
+- **Dynamic Analyzers**: Analyze running processes using PIDs.
+
+---
+
+## Basic Setup
+
+### Step 1: Choose Your Analyzer Type
+
+Select the type of analyzer based on the target:
+
+```python
+# For file analysis (exe, dll, docs)
+from .base import StaticAnalyzer
+
+# For process analysis (PIDs)
+from .base import DynamicAnalyzer
+```
+
+### Step 2: Create Your Analyzer Class
+
+#### Static Analyzer (for files):
+
+```python
+class MyFileAnalyzer(StaticAnalyzer):
+    def analyze(self, file_path):
+        try:
+            tool_config = self.config['analysis']['static']['my_tool']
+            command = tool_config['command'].format(
+                tool_path=tool_config['tool_path'],
+                file_path=file_path
+            )
+            
+            process = subprocess.Popen(command, shell=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True
+            )
+            
+            stdout, stderr = process.communicate()
+            
+            self.results = {
+                'status': 'completed',
+                'findings': self._parse_output(stdout),
+                'errors': stderr
+            }
+        except Exception as e:
+            self.results = {
+                'status': 'error',
+                'error': str(e)
+            }
+```
+
+#### Dynamic Analyzer (for PIDs):
+
+```python
+class MyProcessAnalyzer(DynamicAnalyzer):
+    def analyze(self, pid):
+        try:
+            tool_config = self.config['analysis']['dynamic']['my_tool']
+            command = tool_config['command'].format(
+                tool_path=tool_config['tool_path'],
+                pid=pid
+            )
+            
+            process = subprocess.Popen(command, shell=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True
+            )
+            
+            stdout, stderr = process.communicate()
+            
+            self.results = {
+                'status': 'completed',
+                'findings': self._parse_output(stdout),
+                'errors': stderr
+            }
+        except Exception as e:
+            self.results = {
+                'status': 'error',
+                'error': str(e)
+            }
+```
+
+### Step 3: Implement the Output Parser
+
+```python
+def _parse_output(self, output):
+    findings = {
+        'statistics': {},      # For the stats cards
+        'detections': [],      # For detailed findings
+        'total_detections': 0  # For summary view
+    }
+    
+    for line in output.split('\n'):
+        if ':' in line:
+            key, value = line.split(':', 1)
+            findings['statistics'][key.strip()] = value.strip()
+            
+    return findings
+```
+
+### Step 4: Add Configuration to `config.yml`
+
+```yaml
+analysis:
+  # For file analysis tools
+  static:
+    my_tool:
+      enabled: true
+      tool_path: /path/to/tool
+      command: "{tool_path} -f {file_path}"
+      timeout: 300
+
+  # For process analysis tools
+  dynamic:
+    my_tool:
+      enabled: true
+      tool_path: /path/to/tool
+      command: "{tool_path} --pid {pid}"
+      timeout: 300
+```
+
+### Step 5: Register Your Analyzer
+
+In `manager.py`:
+
+```python
+def _initialize_analyzers(self):
+    # For file analysis
+    if self.config['analysis']['static']['my_tool']['enabled']:
+        self.static_analyzers['my_tool'] = MyFileAnalyzer(self.config)
+    
+    # For process analysis
+    if self.config['analysis']['dynamic']['my_tool']['enabled']:
+        self.dynamic_analyzers['my_tool'] = MyProcessAnalyzer(self.config)
+```
+
+---
+
+## Adding Web UI Components
+
+### Add Your Analyzer Tab in `results.html`
+
+```html
+<!-- For Static Analysis -->
+{% if analysis_type == 'static' %}
+    <button class="tab-button text-base px-4 py-2" data-tab="myToolTab">
+        My Tool Scan
+    </button>
+    <div id="myToolTab" class="tab-content">
+        <div id="myToolStats"></div>
+        <div id="myToolResults"></div>
+    </div>
+
+<!-- For Dynamic Analysis -->
+{% else %}
+    <button class="tab-button text-base px-4 py-2" data-tab="myToolTab">
+        My Tool Scan
+    </button>
+    <div id="myToolTab" class="tab-content">
+        <div id="myToolStats"></div>
+        <div id="myToolResults"></div>
+    </div>
+{% endif %}
+```
+
+### Create Your Renderer in `results.js`
+
+```javascript
+tools.my_tool = {
+    element: document.getElementById('myToolResults'),
+    statsElement: document.getElementById('myToolStats'),
+    render: (results) => {
+        if (results.status === 'error') {
+            tools.my_tool.element.innerHTML = `
+                <div class="bg-red-500/10 border border-red-900/20 rounded-lg p-4">
+                    <div class="flex items-center space-x-2 text-red-500">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span>${results.error}</span>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        const findings = results.findings;
+        const isClean = findings.total_detections === 0;
+
+        tools.my_tool.statsElement.innerHTML = `
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                <div class="bg-gray-900/30 rounded-lg border ${isClean ? 'border-green-500/30' : 'border-red-500/30'} p-4">
+                    <div class="text-sm text-gray-500">Status</div>
+                    <div class="text-2xl font-semibold ${isClean ? 'text-green-500' : 'text-red-500'}">
+                        ${isClean ? 'Clean' : 'Suspicious'}
+                    </div>
+                </div>
+                <!-- Add more stat cards -->
+            </div>`;
+
+        let html = '';
+        if (isClean) {
+            html = `
+                <div class="flex flex-col items-center justify-center py-8 bg-green-500/10 rounded-lg border border-green-500/20">
+                    <svg class="w-12 h-12 text-green-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span class="text-green-500 font-medium">No threats detected</span>
+                </div>`;
+        } else {
+            html = `<div class="space-y-4">
+                ${findings.detections.map(finding => `
+                    <!-- Your finding card template -->
+                `).join('')}
+            </div>`;
+        }
+
+        tools.my_tool.element.innerHTML = html;
+    }
+}
+```
+
+---
+
+Now your analyzer's results will be displayed in the web interface following LitterBox's UI pattern! The UI components include:
+
+- **Tab button** to access your results
+- **Stats cards** showing an overview
+- **Clean/Suspicious status** indicators
+- **Detailed findings display**
+- **Error handling**
