@@ -91,7 +91,7 @@ POST /validate/<pid>         # Validate process accessibility
 ## Installation
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.11 or higher
 - Administrator privileges (required for certain features)
 - Windows operating system (required for specific analyzers)
 
@@ -123,3 +123,24 @@ The `config.yml` file controls:
 - Analysis tool paths and Command options
 - YARA rule locations
 - Analysis timeouts and limits
+
+
+## SECURITY WARNINGS
+
+- **DO NOT USE IN PRODUCTION**: This tool is designed for development and testing environments only. Running it in production could expose your systems to serious security risks.
+- **ISOLATED ENVIRONMENT**: Only run LitterBox in an isolated, disposable virtual machine or dedicated testing environment.
+- **NO WARRANTY**: This software is provided "as is" without any guarantees. Use at your own risk.
+- **LEGAL DISCLAIMER**: Only use this tool for authorized testing purposes. Users are responsible for complying with all applicable laws and regulations.
+
+## Acknowledgments
+
+This project incorporates the following open source components:
+
+| Tool | Author | Repository |
+|------|---------|------------|
+| YARA Rules | Elastic | [elastic/protections-artifacts](https://github.com/elastic/protections-artifacts/tree/main/yara) |
+| PE-Sieve | hasherezade | [hasherezade/pe-sieve](https://github.com/hasherezade/pe-sieve) |
+| Moneta | Forrest Orr | [forrest-orr/moneta](https://github.com/forrest-orr/moneta) |
+| ThreatCheck | rasta-mouse | [rasta-mouse/ThreatCheck](https://github.com/rasta-mouse/ThreatCheck) |
+| Hunt-Sleeping-Beacons | thefLink | [thefLink/Hunt-Sleeping-Beacons](https://github.com/thefLink/Hunt-Sleeping-Beacons) |
+| Patriot | joe-desimone | [joe-desimone/patriot](https://github.com/joe-desimone/patriot) |
