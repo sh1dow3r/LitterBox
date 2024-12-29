@@ -1,6 +1,7 @@
 # LitterBox
 
-LitterBox provides automated analysis of payloads and malware through an intuitive web interface. The platform streamlines pre-deployment testing by validating evasion techniques, monitoring process behavior, and generating comprehensive runtime analysis reports. Designed for validating tradecraft, it enables rapid testing of payloads against common detection mechanisms before execution in target environments.
+A sandbox environment designed specifically for malware development and payload testing. This framework enables red teamers to validate evasion techniques, assess detection signatures, and test implant behavior before deployment in the field. Think of it as your personal lab for perfecting your tradecraft without leaving traces on production detection systems.
+The platform provides automated analysis through an intuitive web interface, monitoring process behavior and generating comprehensive runtime analysis reports. This ensures your payloads work as intended before execution in target environments.
 
 ## Core Features
 
