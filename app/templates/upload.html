@@ -265,12 +265,29 @@
                             </div>
                         </div>
                     </div>
-                    <!-- File Metrics -->
-                    <div class="grid grid-cols-4 gap-4">
-                        <div class="bg-gray-900/30 rounded-lg p-4">
-                            <div class="text-base text-gray-300 mb-1">Entropy</div>
-                            <div id="fileEntropy" class="text-lg font-semibold text-gray-300"></div>
+
+                    <!-- Enhanced Entropy Analysis -->
+                    <div class="bg-gray-900/30 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-base text-gray-300">Entropy Analysis</span>
+                            <span id="detectionRisk" class="px-3 py-1 text-sm rounded-full"></span>
                         </div>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-400">Overall Entropy</span>
+                                <div id="fileEntropy" class="text-lg font-semibold text-gray-300"></div>
+                            </div>
+                            <div class="relative h-2 bg-gray-800 rounded-full overflow-hidden">
+                                <div id="entropyBar" class="absolute h-full transition-all duration-300"></div>
+                            </div>
+                            <div id="entropyNotes" class="text-sm text-gray-400 space-y-1">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File Basic Info -->
+                    <div class="grid grid-cols-3 gap-4">
                         <div class="bg-gray-900/30 rounded-lg p-4">
                             <div class="text-base text-gray-300 mb-1">Type</div>
                             <div id="fileCategory" class="text-lg font-semibold text-gray-300"></div>
@@ -285,7 +302,84 @@
                         </div>
                     </div>
 
-                    <!-- File Type Specific Info -->
+                    <!-- PE Checksum Info -->
+                    <div id="checksumInfo" class="bg-gray-900/30 rounded-lg p-4 mb-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-base text-gray-300">PE Checksum Analysis</span>
+                            <span id="checksumStatus" class="px-3 py-1 text-sm rounded-full"></span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <div class="text-sm text-gray-400 mb-1">Stored Checksum</div>
+                                <div id="storedChecksum" class="text-base font-mono text-gray-300"></div>
+                            </div>
+                            <div>
+                                <div class="text-sm text-gray-400 mb-1">Calculated Checksum</div>
+                                <div id="calculatedChecksum" class="text-base font-mono text-gray-300"></div>
+                            </div>
+                        </div>
+                        <div id="checksumNotes" class="mt-4 text-sm text-gray-400 space-y-1">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Suspicious Imports Analysis -->
+                    <div id="suspiciousImports" class="bg-gray-900/30 rounded-lg p-4 mb-4 hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-base text-gray-300">Suspicious Imports Analysis</span>
+                            <span id="suspiciousImportsCount" class="px-3 py-1 text-sm bg-red-500/10 text-red-500 rounded-full">
+                                <!-- Count populated by JS -->
+                            </span>
+                        </div>
+                        <div id="suspiciousImportsList" class="space-y-4">
+                            <!-- List populated by JS -->
+                        </div>
+                        <div class="border-t border-gray-800 pt-4 mt-4">
+                            <div class="text-sm text-gray-400">
+                                <div class="flex items-center space-x-2">
+                                    <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                    </svg>
+                                    <span id="suspiciousImportsSummary"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PE File Specific Info -->
+                    <div id="peInfo" class="bg-gray-900/30 rounded-lg p-4 hidden">
+                        <div class="space-y-6">
+                            <div class="text-base text-gray-300 mb-2">Section Analysis</div>
+                            <div id="sectionsList" class="space-y-4">
+                                <!-- Populated by JS -->
+                            </div>
+                            <div class="border-t border-gray-800 pt-4">
+                                <div class="text-base text-gray-300 mb-2">Detection Notes</div>
+                                <div id="detectionNotes" class="space-y-2 text-sm text-gray-400">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Office File Specific Info -->
+                    <div id="officeInfo" class="bg-gray-900/30 rounded-lg p-4 hidden">
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-base text-gray-300">Macro Analysis</span>
+                                <span id="macroStatus" class="px-3 py-1 text-sm rounded-full"></span>
+                            </div>
+                            <div id="macroDetectionNotes" class="space-y-2 text-sm text-gray-400">
+                                <!-- Populated by JS -->
+                            </div>
+                            <div id="macroInfo" class="text-sm text-gray-400">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generic File Info -->
                     <div id="fileSpecificInfo" class="bg-gray-900/30 rounded-lg p-4 text-base text-gray-300">
                         <!-- Dynamically populated based on file type -->
                     </div>

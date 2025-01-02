@@ -662,7 +662,7 @@ const tools = {
                 <div class="grid grid-cols-3 gap-4 mb-6">
                     <div class="bg-gray-900/30 rounded-lg border ${isClean ? 'border-green-500/30' : 'border-red-500/30'} p-4">
                         <div class="text-sm text-gray-500">Status</div>
-                        <div class="text-xl font-semibold ${isClean ? 'text-green-500' : 'text-red-500'}">
+                        <div class="text-base font-semibold ${isClean ? 'text-green-500' : 'text-red-500'}">
                             ${isClean ? 'Clean' : (findings.initial_threat || 'Unknown Threat')}
                         </div>
                     </div>

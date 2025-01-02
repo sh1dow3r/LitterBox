@@ -31,7 +31,25 @@ document.addEventListener('DOMContentLoaded', function() {
         step2Circle: document.getElementById('step2Circle'),
         step2Text: document.getElementById('step2Text'),
         progressLine: document.getElementById('progressLine'),
-        toastContainer: document.getElementById('toastContainer')
+        toastContainer: document.getElementById('toastContainer'),
+        entropyBar: document.getElementById('entropyBar'),
+        entropyNotes: document.getElementById('entropyNotes'),
+        detectionRisk: document.getElementById('detectionRisk'),
+        peInfo: document.getElementById('peInfo'),
+        sectionsList: document.getElementById('sectionsList'),
+        detectionNotes: document.getElementById('detectionNotes'),
+        officeInfo: document.getElementById('officeInfo'),
+        macroStatus: document.getElementById('macroStatus'),
+        checksumInfo: document.getElementById('checksumInfo'),
+        checksumStatus: document.getElementById('checksumStatus'),
+        storedChecksum: document.getElementById('storedChecksum'),
+        calculatedChecksum: document.getElementById('calculatedChecksum'),
+        checksumNotes: document.getElementById('checksumNotes'),
+        // New suspicious imports elements
+        suspiciousImports: document.getElementById('suspiciousImports'),
+        suspiciousImportsList: document.getElementById('suspiciousImportsList'),
+        suspiciousImportsCount: document.getElementById('suspiciousImportsCount'),
+        suspiciousImportsSummary: document.getElementById('suspiciousImportsSummary')
     };
 
     let currentFileHash = null;
@@ -73,6 +91,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
         label.classList.add('scale-[1.02]', 'border-red-500/50');
         icon.classList.add('scale-110');
+    }
+
+    function updateEntropyAnalysis(fileInfo) {
+        if (fileInfo.entropy_analysis) {
+            const entropyPercentage = (fileInfo.entropy / 8) * 100;
+            
+            elements.entropyBar.style.width = `${entropyPercentage}%`;
+            elements.entropyBar.className = `absolute h-full transition-all duration-300 ${
+                fileInfo.entropy_analysis.detection_risk === 'High' ? 'bg-red-500' :
+                fileInfo.entropy_analysis.detection_risk === 'Medium' ? 'bg-yellow-500' : 
+                'bg-green-500'
+            }`;
+
+            elements.detectionRisk.className = `px-3 py-1 text-sm rounded-full ${
+                fileInfo.entropy_analysis.detection_risk === 'High' ? 'bg-red-500/10 text-red-500' :
+                fileInfo.entropy_analysis.detection_risk === 'Medium' ? 'bg-yellow-500/10 text-yellow-500' :
+                'bg-green-500/10 text-green-500'
+            }`;
+            elements.detectionRisk.textContent = `${fileInfo.entropy_analysis.detection_risk} Detection Risk`;
+
+            if (fileInfo.entropy_analysis.notes.length > 0) {
+                elements.entropyNotes.innerHTML = fileInfo.entropy_analysis.notes.map(note => `
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span>${note}</span>
+                    </div>
+                `).join('');
+            }
+        }
     }
 
     function unhighlight() {
@@ -153,13 +203,111 @@ document.addEventListener('DOMContentLoaded', function() {
             elements.step2Text.classList.add('text-red-500');
         }
     }
-
+    // Add this function after your existing utility functions
+    function getDetectionRiskColor(risk) {
+        const colors = {
+            'High': 'bg-red-500/10 text-red-500',
+            'Medium': 'bg-yellow-500/10 text-yellow-500',
+            'Low': 'bg-green-500/10 text-green-500'
+        };
+        return colors[risk] || colors['Low'];
+    }
     // File Info Functions
+    // Modify your renderFileTypeSpecificInfo function
     function renderFileTypeSpecificInfo(fileInfo) {
-        let html = '';
+        // Hide both specific info sections by default
+        elements.peInfo.classList.add('hidden');
+        elements.officeInfo.classList.add('hidden');
+        elements.suspiciousImports.classList.add('hidden');
+        
+        // Update entropy analysis
+        if (fileInfo.entropy_analysis) {
+            const entropyPercentage = (fileInfo.entropy / 8) * 100;
+            elements.entropyBar.style.width = `${entropyPercentage}%`;
+            elements.entropyBar.className = `absolute h-full transition-all duration-300 ${
+                fileInfo.entropy_analysis.detection_risk === 'High' ? 'bg-red-500' :
+                fileInfo.entropy_analysis.detection_risk === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'
+            }`;
 
+            elements.detectionRisk.className = `px-3 py-1 text-sm rounded-full ${
+                getDetectionRiskColor(fileInfo.entropy_analysis.detection_risk)
+            }`;
+            elements.detectionRisk.textContent = `${fileInfo.entropy_analysis.detection_risk} Detection Risk`;
+
+            elements.entropyNotes.innerHTML = fileInfo.entropy_analysis.notes.map(note => `
+                <div class="flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span>${note}</span>
+                </div>
+            `).join('');
+        }
+
+        // Render PE-specific information
         if (fileInfo.pe_info) {
+            elements.peInfo.classList.remove('hidden');
             const pe = fileInfo.pe_info;
+
+            // Handle suspicious imports
+            if (pe.suspicious_imports && pe.suspicious_imports.length > 0) {
+                elements.suspiciousImports.classList.remove('hidden');
+                elements.suspiciousImportsCount.textContent = `${pe.suspicious_imports.length} Found`;
+                
+                elements.suspiciousImportsList.innerHTML = pe.suspicious_imports.map(imp => `
+                    <div class="border-b border-gray-800 last:border-b-0 pb-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-red-500 font-mono">${imp.dll}</span>
+                                <span class="text-gray-400">→</span>
+                                <span class="text-gray-300 font-mono">${imp.function}</span>
+                            </div>
+                            <span class="text-xs text-gray-500">Hint: ${imp.hint}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            <span class="text-sm text-gray-400">${imp.note}</span>
+                        </div>
+                    </div>
+                `).join('');
+
+                elements.suspiciousImportsSummary.textContent = 
+                    `Found ${pe.suspicious_imports.length} potentially suspicious imports that may indicate malicious capabilities.`;
+            }
+
+            // Add checksum info display
+            if (pe.checksum_info) {
+                elements.checksumInfo.classList.remove('hidden');
+                elements.storedChecksum.textContent = pe.checksum_info.stored_checksum;
+                elements.calculatedChecksum.textContent = pe.checksum_info.calculated_checksum;
+                
+                // Set checksum status
+                elements.checksumStatus.className = `px-3 py-1 text-sm rounded-full ${
+                    pe.checksum_info.is_valid ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                }`;
+                elements.checksumStatus.textContent = pe.checksum_info.is_valid ? 'Valid' : 'Invalid';
+                
+                // Add checksum notes if needed
+                if (!pe.checksum_info.is_valid) {
+                    elements.checksumNotes.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                            <span>Invalid checksum - Common in packed/modified payloads</span>
+                        </div>
+                    `;
+                }
+            } else {
+                elements.checksumInfo.classList.add('hidden');
+            }
+            
+            // Original PE info display
             html = `
                 <div class="space-y-4">
                     <div class="flex items-center justify-between">
@@ -187,11 +335,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="text-sm text-gray-400">${pe.sections.length} sections</span>
                         </div>
                         <div class="flex flex-wrap gap-2">
-                            ${pe.sections.map(section => `
-                                <span class="px-2 py-1 text-sm bg-gray-900/50 rounded-lg border border-gray-800 text-gray-400">
-                                    ${section}
-                                </span>
-                            `).join('')}
+                            ${pe.sections.map(section => {
+                                const isStandardSection = ['.text', '.data', '.bss', '.rdata', '.edata', '.idata', '.pdata', '.reloc', '.rsrc', '.tls', '.debug'].includes(section.name);
+                                return `
+                                    <span class="px-2 py-1 text-sm ${isStandardSection ? 'bg-gray-900/50 text-gray-400' : 'bg-red-500/10 text-red-500'} rounded-lg border ${isStandardSection ? 'border-gray-800' : 'border-red-900/20'}">
+                                        ${section.name}
+                                    </span>
+                                `;
+                            }).join('')}
                         </div>
                     </div>
                     ${pe.imports && pe.imports.length > 0 ? `
@@ -211,40 +362,81 @@ document.addEventListener('DOMContentLoaded', function() {
                     ` : ''}
                 </div>
             `;
-        } else if (fileInfo.office_info) {
-            const office = fileInfo.office_info;
-            html = `
-                <div class="space-y-4">
-                    <h6 class="text-base font-medium text-gray-300">Office Document Information</h6>
-                    <div class="flex items-center space-x-4">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-base text-gray-400">Macros:</span>
-                            <span class="px-2 py-1 text-sm rounded-lg ${office.has_macros ? 
-                                'bg-red-500/10 text-red-500 border-red-900/20' : 
-                                'bg-gray-900/50 text-gray-400 border-gray-800'} border">
-                                ${office.has_macros ? 'Present' : 'None'}
-                            </span>
+            
+            elements.fileSpecificInfo.innerHTML = html;
+                    
+            // New section analysis display
+            elements.sectionsList.innerHTML = pe.sections.map(section => {
+                const isStandardSection = ['.text', '.data', '.bss', '.rdata', '.edata', '.idata', '.pdata', '.reloc', '.rsrc', '.tls', '.debug'].includes(section.name);
+                return `
+                    <div class="border-b border-gray-800 pb-4 last:border-0">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-base ${isStandardSection ? 'text-gray-300' : 'text-red-500'}">${section.name}</span>
+                                <span class="px-2 py-1 text-sm rounded ${
+                                    section.entropy > 7.2 ? 'text-red-500 bg-red-500/10' :
+                                    section.entropy > 6.8 ? 'text-yellow-500 bg-yellow-500/10' :
+                                    'text-green-500 bg-green-500/10'
+                                }">
+                                    Entropy: ${section.entropy}
+                                </span>
+                            </div>
+                            <span class="text-sm text-gray-400">${formatFileSize(section.size)}</span>
                         </div>
+                        ${section.detection_notes.length > 0 ? `
+                            <div class="text-sm text-gray-400">
+                                ${section.detection_notes.map(note => `
+                                    <div class="flex items-center space-x-2">
+                                        <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                        </svg>
+                                        <span>${note}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
                     </div>
-                    ${office.macro_info ? `
-                        <div class="space-y-2">
-                            <div class="text-base text-gray-400">Macro Information</div>
-                            <pre class="text-base text-gray-300 bg-gray-900/50 rounded-lg p-4 overflow-x-auto">
-                                ${JSON.stringify(office.macro_info, null, 2)}
-                            </pre>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-        } else {
-            html = `
-                <div class="text-base text-gray-400 text-center py-4">
-                    No specific file information available
-                </div>
-            `;
-        }
+                `;
+            }).join('');
 
-        elements.fileSpecificInfo.innerHTML = html;
+            // Render detection notes
+            if (fileInfo.pe_info.detection_notes.length > 0) {
+                elements.detectionNotes.innerHTML = fileInfo.pe_info.detection_notes.map(note => `
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <span>${note}</span>
+                    </div>
+                `).join('');
+            }
+        } 
+        // Render Office-specific information
+        else if (fileInfo.office_info) {
+            elements.officeInfo.classList.remove('hidden');
+            const office = fileInfo.office_info;
+
+            // Update macro status
+            elements.macroStatus.className = `px-3 py-1 text-sm rounded-full ${
+                office.has_macros ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'
+            }`;
+            elements.macroStatus.textContent = office.has_macros ? 'Macros Present' : 'No Macros';
+
+            // Show detection notes if any
+            if (office.detection_notes && office.detection_notes.length > 0) {
+                elements.macroDetectionNotes.innerHTML = office.detection_notes.map(note => `
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <span>${note}</span>
+                    </div>
+                `).join('');
+            }
+        }
     }
 
     function updateFileInfo(fileInfo) {

@@ -17,48 +17,8 @@ def allowed_file(filename, config):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in config['upload']['allowed_extensions']
 
-def save_uploaded_file(file, upload_folder):
-    file_content = file.read()
-    file.close()
-    md5_hash = hashlib.md5(file_content).hexdigest()
-    sha256_hash = hashlib.sha256(file_content).hexdigest()
-    
-    original_filename = secure_filename(file.filename)
-    extension = os.path.splitext(original_filename)[1].lower()
-    filename = f"{md5_hash}_{original_filename}"
-    
-    os.makedirs(upload_folder, exist_ok=True)
-    filepath = os.path.join(upload_folder, filename)
-    
-    with open(filepath, 'wb') as f:
-        f.write(file_content)
-
-    file_info = {
-        'original_name': original_filename,
-        'md5': md5_hash,
-        'sha256': sha256_hash,
-        'size': len(file_content),
-        'extension': extension,
-        'mime_type': mimetypes.guess_type(original_filename)[0] or 'application/octet-stream',
-        'upload_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'entropy': calculate_entropy(file_content),
-    }
-
-    # Add specific file type information for PE files
-    if extension in ['.exe', '.dll', '.sys']:
-        file_info.update(get_pe_info(filepath))
-
-    # Add specific file type information for Office documents
-    if extension in ['.docx', '.xlsx', '.doc', '.xls', '.xlsm', '.docm']:
-        office_result = get_office_info(filepath)
-        if 'error' in office_result:
-            print(f"Warning: {office_result['error']}")
-        file_info.update(office_result)
-
-    return file_info
-
 def calculate_entropy(data):
-    """Calculate Shannon entropy of data"""
+    """Calculate Shannon entropy of data with detection insights"""
     if len(data) == 0:
         return 0
     
@@ -80,18 +40,136 @@ def calculate_entropy(data):
     return round(entropy, 2)
 
 def get_pe_info(filepath):
-    """Get PE file information"""
+    """Enhanced PE file analysis with deep import analysis and detection vectors"""
     try:
         pe = pefile.PE(filepath)
+        
+        # Enhanced section analysis
+        sections_info = []
+        suspicious_imports = []
+        high_risk_imports = {
+            'kernel32.dll': {
+                'createremotethread': 'Process Injection capability detected',
+                'virtualallocex': 'Memory allocation in remote process detected',
+                'writeprocessmemory': 'Process memory manipulation detected',
+                'getprocaddress': 'Dynamic API resolution - possible evasion technique',
+                'loadlibrarya': 'Dynamic library loading - possible evasion technique',
+                'openprocess': 'Process manipulation capability',
+                'createtoolhelp32snapshot': 'Process enumeration capability',
+                'process32first': 'Process enumeration capability',
+                'process32next': 'Process enumeration capability'
+            },
+            'user32.dll': {
+                'getasynckeystate': 'Potential keylogging capability',
+                'getdc': 'Screen capture capability',
+                'getforegroundwindow': 'Window/Process monitoring capability'
+            },
+            'wininet.dll': {
+                'internetconnect': 'Network communication capability',
+                'internetopen': 'Network communication capability',
+                'ftpputfile': 'FTP upload capability',
+                'ftpopenfile': 'FTP communication capability'
+            },
+            'urlmon.dll': {
+                'urldownloadtofile': 'File download capability'
+            }
+        }
+        """
+        https://practicalsecurityanalytics.com/threat-hunting-with-function-imports/
+        """
+        # Check imports for suspicious behavior
+        if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+            for entry in pe.DIRECTORY_ENTRY_IMPORT:
+                dll_name = entry.dll.decode().lower()
+                
+                # Check each imported function
+                for imp in entry.imports:
+                    if imp.name:
+                        func_name = imp.name.decode().lower()
+                        
+                        # Check if this is a high-risk import
+                        if dll_name in high_risk_imports and func_name in high_risk_imports[dll_name]:
+                            suspicious_imports.append({
+                                'dll': dll_name,
+                                'function': func_name,
+                                'note': high_risk_imports[dll_name][func_name],
+                                'hint': imp.hint if hasattr(imp, 'hint') else 0
+                            })
+        
+        """
+        https://practicalsecurityanalytics.com/file-entropy/
+        """
+        # Section Analysis with entropy
+        for section in pe.sections:
+            section_name = section.Name.decode().rstrip('\x00')
+            section_data = section.get_data()
+            section_entropy = calculate_entropy(section_data)
+            
+            # Standard PE sections
+            standard_sections = ['.text', '.data', '.bss', '.rdata', '.edata', '.idata', '.pdata', '.reloc', '.rsrc', '.tls', '.debug']
+            is_standard = section_name in standard_sections
+            
+            sections_info.append({
+                'name': section_name,
+                'entropy': section_entropy,
+                'size': len(section_data),
+                'characteristics': section.Characteristics,
+                'is_standard': is_standard,
+                'detection_notes': []
+            })
+            
+            # Add section-specific detection notes
+            if section_entropy > 7.2:
+                sections_info[-1]['detection_notes'].append('High entropy may trigger detection')
+            if section_name == '.text' and section_entropy > 7.0:
+                sections_info[-1]['detection_notes'].append('Unusual entropy for code section')
+            if not is_standard:
+                sections_info[-1]['detection_notes'].append('Non-standard section name - may trigger detection')
+
+        """
+        https://practicalsecurityanalytics.com/pe-checksum/
+        """
+        # Check PE Checksum
+        is_valid_checksum = pe.verify_checksum()
+        calculated_checksum = pe.generate_checksum()
+        stored_checksum = pe.OPTIONAL_HEADER.CheckSum
+        
         info = {
             'file_type': 'PE32+ executable' if pe.PE_TYPE == pefile.OPTIONAL_HEADER_MAGIC_PE_PLUS else 'PE32 executable',
             'machine_type': pefile.MACHINE_TYPE[pe.FILE_HEADER.Machine].replace('IMAGE_FILE_MACHINE_', ''),
             'compile_time': datetime.datetime.fromtimestamp(pe.FILE_HEADER.TimeDateStamp).strftime('%Y-%m-%d %H:%M:%S'),
             'subsystem': pefile.SUBSYSTEM_TYPE[pe.OPTIONAL_HEADER.Subsystem].replace('IMAGE_SUBSYSTEM_', ''),
             'entry_point': hex(pe.OPTIONAL_HEADER.AddressOfEntryPoint),
-            'sections': [section.Name.decode().rstrip('\x00') for section in pe.sections],
-            'imports': list(set(entry.dll.decode() for entry in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', [])))
+            'sections': sections_info,
+            'imports': list(set(entry.dll.decode() for entry in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []))),
+            'suspicious_imports': suspicious_imports,
+            'detection_notes': [],
+            'checksum_info': {
+                'is_valid': is_valid_checksum,
+                'stored_checksum': hex(stored_checksum),
+                'calculated_checksum': hex(calculated_checksum),
+                'needs_update': calculated_checksum != stored_checksum
+            }
         }
+        
+        # Add overall detection insights
+        if not is_valid_checksum:
+            info['detection_notes'].append('Invalid PE checksum - Common in modified/packed files (~83% correlation with malware)')
+
+        if suspicious_imports:
+            info['detection_notes'].append(f'Found {len(suspicious_imports)} suspicious API imports - Review import analysis')
+            
+        if any(section['entropy'] > 7.2 for section in sections_info):
+            info['detection_notes'].append('High entropy sections detected - Consider entropy reduction techniques')
+        
+        if '.text' in [section['name'] for section in sections_info]:
+            text_section = next(s for s in sections_info if s['name'] == '.text')
+            if text_section['entropy'] > 7.0:
+                info['detection_notes'].append('Packed/encrypted code section may trigger heuristics')
+
+        if any(not section['is_standard'] for section in sections_info):
+            info['detection_notes'].append('Non-standard PE sections detected - May trigger static analysis')
+                
         pe.close()
         return {'pe_info': info}
     except Exception as e:
@@ -99,19 +177,100 @@ def get_pe_info(filepath):
         return {'pe_info': None}
 
 def get_office_info(filepath):
-    """Get Office document information"""
+    """Enhanced Office document analysis with detection insights"""
     try:
         vbaparser = VBA_Parser(filepath)
+        detection_notes = []
+        
         info = {
             'file_type': 'Microsoft Office Document',
             'has_macros': vbaparser.detect_vba_macros(),
-            'macro_info': vbaparser.analyze_macros() if vbaparser.detect_vba_macros() else None,
+            'macro_info': None,
+            'detection_notes': detection_notes
         }
-        vbaparser.close()  # Release the VBA Parser resource
+        
+        if vbaparser.detect_vba_macros():
+            macro_analysis = vbaparser.analyze_macros()
+            info['macro_info'] = macro_analysis
+            
+            # Analyze macros for detection vectors
+            macro_text = str(macro_analysis).lower()
+            detection_patterns = {
+                'shell': 'Shell command execution detected',
+                'wscript': 'WScript execution detected',
+                'powershell': 'PowerShell execution detected',
+                'http': 'Network communication detected',
+                'auto': 'Auto-execution mechanism detected',
+                'document_open': 'Document open auto-execution',
+                'windowshide': 'Hidden window execution',
+                'createobject': 'COM object creation detected'
+            }
+            
+            for pattern, note in detection_patterns.items():
+                if pattern in macro_text:
+                    detection_notes.append(note)
+        
+        vbaparser.close()
         return {'office_info': info}
     except Exception as e:
         print(f"Error analyzing Office file: {e}")
         return {'office_info': None}
+
+def save_uploaded_file(file, upload_folder):
+    file_content = file.read()
+    file.close()
+    md5_hash = hashlib.md5(file_content).hexdigest()
+    sha256_hash = hashlib.sha256(file_content).hexdigest()
+    
+    original_filename = secure_filename(file.filename)
+    extension = os.path.splitext(original_filename)[1].lower()
+    filename = f"{md5_hash}_{original_filename}"
+    
+    os.makedirs(upload_folder, exist_ok=True)
+    filepath = os.path.join(upload_folder, filename)
+    
+    with open(filepath, 'wb') as f:
+        f.write(file_content)
+
+    entropy_value = calculate_entropy(file_content)
+    
+    file_info = {
+        'original_name': original_filename,
+        'md5': md5_hash,
+        'sha256': sha256_hash,
+        'size': len(file_content),
+        'extension': extension,
+        'mime_type': mimetypes.guess_type(original_filename)[0] or 'application/octet-stream',
+        'upload_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'entropy': entropy_value,
+        'entropy_analysis': {
+            'value': entropy_value,
+            'detection_risk': 'High' if entropy_value > 7.2 else 
+                            'Medium' if entropy_value > 6.8 else 'Low',
+            'notes': []
+        }
+    }
+    
+    # Add entropy-based detection notes
+    if entropy_value > 7.2:
+        file_info['entropy_analysis']['notes'].append(
+            'High entropy indicates encryption/packing - consider entropy reduction')
+    elif entropy_value > 6.8:
+        file_info['entropy_analysis']['notes'].append(
+            'Moderate entropy - may trigger basic detection')
+    
+    # Add specific file type information for PE files
+    if extension in ['.exe', '.dll', '.sys']:
+        file_info.update(get_pe_info(filepath))
+
+    # Add specific file type information for Office documents
+    if extension in ['.docx', '.xlsx', '.doc', '.xls', '.xlsm', '.docm']:
+        office_result = get_office_info(filepath)
+        if 'error' in office_result:
+            print(f"Warning: {office_result['error']}")
+        file_info.update(office_result)
+
+    return file_info
 
 def find_file_by_hash(file_hash, upload_folder):
     for filename in os.listdir(upload_folder):
