@@ -145,7 +145,8 @@ This project incorporates the following open-source components and acknowledges 
 - [joe-desimone](https://github.com/joe-desimone/patriot)
 
 ## Screenshots
-![upload](https://github.com/user-attachments/assets/db149a24-2804-46f2-8d00-f5a35e065a1d)
+
+![upload](https://github.com/user-attachments/assets/4cf6c2b1-4838-4b8d-8c5d-747bddfcf608)
 
 ![static](https://github.com/user-attachments/assets/821d62b6-31d9-4a98-aa95-e27be07f95d6)
 
