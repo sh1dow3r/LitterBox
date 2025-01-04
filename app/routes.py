@@ -8,6 +8,7 @@ import os
 import shutil
 import psutil
 import pefile
+import json
 from .analyzers.manager import AnalysisManager
 from flask import render_template, request, jsonify
 from werkzeug.utils import secure_filename
@@ -216,7 +217,7 @@ def get_office_info(filepath):
         print(f"Error analyzing Office file: {e}")
         return {'office_info': None}
 
-def save_uploaded_file(file, upload_folder):
+def save_uploaded_file(file, upload_folder, result_folder):
     file_content = file.read()
     file.close()
     md5_hash = hashlib.md5(file_content).hexdigest()
@@ -228,6 +229,8 @@ def save_uploaded_file(file, upload_folder):
     
     os.makedirs(upload_folder, exist_ok=True)
     filepath = os.path.join(upload_folder, filename)
+    os.makedirs(result_folder, exist_ok=True)
+    os.makedirs(os.path.join(result_folder, filename), exist_ok=True)
     
     with open(filepath, 'wb') as f:
         f.write(file_content)
@@ -269,6 +272,10 @@ def save_uploaded_file(file, upload_folder):
         if 'error' in office_result:
             print(f"Warning: {office_result['error']}")
         file_info.update(office_result)
+
+    # save file info to result folder
+    with open(os.path.join(result_folder, filename, 'file_info.json'), 'w') as f:
+        json.dump(file_info, f)
 
     return file_info
 
@@ -335,7 +342,7 @@ def register_routes(app):
         
         if file and allowed_file(file.filename, app.config):
             try:
-                file_info = save_uploaded_file(file, app.config['upload']['upload_folder'])
+                file_info = save_uploaded_file(file, app.config['upload']['upload_folder'], app.config['upload']['result_folder'])
                 return jsonify({
                     'message': 'File uploaded successfully',
                     'file_info': file_info
@@ -369,6 +376,7 @@ def register_routes(app):
             else:
                 # Look for file as before
                 file_path = find_file_by_hash(target, app.config['upload']['upload_folder'])
+                result_path = find_file_by_hash(target, app.config['upload']['result_folder'])
                 if not file_path:
                     return jsonify({'error': 'File not found'}), 404
             if request.method == 'GET':
@@ -381,9 +389,15 @@ def register_routes(app):
                 if is_pid:
                     return jsonify({'error': 'Cannot perform static analysis on PID'}), 400
                 results = analysis_manager.run_static_analysis(file_path)
+                # save results to result folder
+                with open(os.path.join(result_path, 'static_analysis_results.json'), 'w') as f:
+                    json.dump(results, f)
             elif analysis_type == 'dynamic':
                 target_for_analysis = target if is_pid else file_path
                 results = analysis_manager.run_dynamic_analysis(target_for_analysis, is_pid)
+                # save results to result folder
+                with open(os.path.join(result_path, 'dynamic_analysis_results.json'), 'w') as f:
+                    json.dump(results, f)
             else:
                 return jsonify({'error': 'Invalid analysis type'}), 400
 
@@ -401,6 +415,7 @@ def register_routes(app):
             results = {
                 'uploads_cleaned': 0,
                 'analysis_cleaned': 0,
+                'result_cleaned': 0,
                 'errors': []
             }
 
@@ -419,6 +434,22 @@ def register_routes(app):
                             results['errors'].append(f"Error deleting {f}: {str(e)}")
                 except Exception as e:
                     results['errors'].append(f"Error accessing uploads folder: {str(e)}")
+
+            # delete all folders in result folder
+            result_folder = app.config['upload']['result_folder']
+            if os.path.exists(result_folder):
+                try:
+                    folders = os.listdir(result_folder)
+                    for folder in folders:
+                        folder_path = os.path.join(result_folder, folder)
+                        try:
+                            if os.path.isdir(folder_path):
+                                shutil.rmtree(folder_path)
+                                results['result_cleaned'] += 1
+                        except Exception as e:
+                            results['errors'].append(f"Error deleting {folder}: {str(e)}")
+                except Exception as e:
+                    results['errors'].append(f"Error accessing result folder: {str(e)}")
 
             # Clean analysis folders
             analysis_path = os.path.join('.', 'Scanners', 'PE-Sieve', 'Analysis')

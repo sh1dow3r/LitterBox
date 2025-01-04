@@ -16,6 +16,7 @@ upload:
     - sys
   max_file_size: 16777216  # 16MB in bytes
   upload_folder: "Uploads"
+  result_folder: "Results"
 
 analysis:
   static:
