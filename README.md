@@ -80,6 +80,7 @@ POST /upload                           # Upload files for analysis
 GET  /analyze/static/<hash>            # Static file analysis
 POST /analyze/dynamic/<hash>           # Dynamic file analysis
 POST /analyze/dynamic/<pid>            # Process analysis
+GET  /files                            # Get list of processed files
 GET  /file/<hash>/info                 # Get file info
 GET  /file/<hash>/static               # Get results for file static analysis
 GET  /file/<hash>/dynamic              # Get results for file dynamic analysis
