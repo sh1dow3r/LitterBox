@@ -603,6 +603,12 @@ def register_routes(app):
                 'issues': [str(e)]
             }), 500
 
+    @app.route('/summary')
+    @app.route('/summary.html')
+    def summary_page():
+        """Route for the summary page"""
+        return render_template('summary.html')
+
     @app.route('/files', methods=['GET'])
     def get_files_summary():
         try:
@@ -632,6 +638,8 @@ def register_routes(app):
                     'md5': file_info.get('md5', 'unknown'),
                     'sha256': file_info.get('sha256', 'unknown'),
                     'filename': file_info.get('original_name', 'unknown'),
+                    'file_size': file_info.get('size', 0),
+                    'upload_time': file_info.get('upload_time', 'unknown'),
                     'result_dir_full_path': os.path.abspath(dir_path),
                     'entropy_value': file_info.get('entropy_analysis', {}).get('value', 0),
                     'detection_risk': file_info.get('entropy_analysis', {}).get('detection_risk', 'Unknown'),
@@ -649,6 +657,69 @@ def register_routes(app):
             return jsonify({
                 'status': 'error',
                 'error': str(e)
+            }), 500
+
+    @app.route('/file/<target>', methods=['DELETE'])
+    def delete_file(target):
+        try:
+            # Find file in uploads folder
+            upload_path = find_file_by_hash(target, app.config['upload']['upload_folder'])
+            result_path = find_file_by_hash(target, app.config['upload']['result_folder'])
+            analysis_path = os.path.join('.', 'Scanners', 'PE-Sieve', 'Analysis')
+            
+            deleted = {
+                'upload': False,
+                'result': False,
+                'analysis': False
+            }
+
+            # Delete from uploads if exists
+            if upload_path:
+                try:
+                    if os.path.isfile(upload_path):
+                        os.unlink(upload_path)
+                    deleted['upload'] = True
+                except Exception as e:
+                    app.logger.error(f"Error deleting upload file: {str(e)}")
+
+            # Delete result folder if exists
+            if result_path:
+                try:
+                    if os.path.isdir(result_path):
+                        shutil.rmtree(result_path)
+                    deleted['result'] = True
+                except Exception as e:
+                    app.logger.error(f"Error deleting result folder: {str(e)}")
+
+            # Delete analysis folders if they exist
+            if os.path.exists(analysis_path):
+                try:
+                    # Find all process_* folders related to this file
+                    process_folders = glob.glob(os.path.join(analysis_path, f'*_{target}_*'))
+                    for folder in process_folders:
+                        if os.path.isdir(folder):
+                            shutil.rmtree(folder)
+                            deleted['analysis'] = True
+                except Exception as e:
+                    app.logger.error(f"Error deleting analysis folders: {str(e)}")
+
+            # Check if anything was deleted
+            if not any(deleted.values()):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'File not found'
+                }), 404
+
+            return jsonify({
+                'status': 'success',
+                'message': 'File deleted successfully',
+                'details': deleted
+            })
+
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
             }), 500
 
     return app

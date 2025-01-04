@@ -76,14 +76,15 @@ Features include:
 
 ### File Operations
 ```http
-POST /upload                           # Upload files for analysis
-GET  /analyze/static/<hash>            # Static file analysis
-POST /analyze/dynamic/<hash>           # Dynamic file analysis
-POST /analyze/dynamic/<pid>            # Process analysis
-GET  /files                            # Get list of processed files
-GET  /file/<hash>/info                 # Get file info
-GET  /file/<hash>/static               # Get results for file static analysis
-GET  /file/<hash>/dynamic              # Get results for file dynamic analysis
+POST   /upload                          # Upload files for analysis
+GET    /analyze/static/<hash>           # Static file analysis
+POST   /analyze/dynamic/<hash>          # Dynamic file analysis
+POST   /analyze/dynamic/<pid>           # Process analysis
+GET    /files                           # Get list of processed files
+GET    /file/<hash>/info                # Get file info
+GET    /file/<hash>/static              # Get results for file static analysis
+GET    /file/<hash>/dynamic             # Get results for file dynamic analysis
+DELETE /file/<hash>                     # Delete single analysis
 ```
 
 ### System Management
@@ -156,4 +157,4 @@ This project incorporates the following open-source components and acknowledges 
 
 ![dynamic](https://github.com/user-attachments/assets/c4251116-ebe3-45eb-9a22-0254a3945e5a)
 
-
+![summary](./app/static/images/summary.jpg)

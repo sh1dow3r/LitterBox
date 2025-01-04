@@ -194,6 +194,11 @@ class StatusManager {
     }
 }
 
+// Show Summary
+function showSummary() {
+    window.location.href = '/summary';
+}
+
 // Notification System
 const NotificationSystem = {
     show(message, className, duration = CONFIG.notificationDuration) {
