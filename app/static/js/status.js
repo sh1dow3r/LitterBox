@@ -194,6 +194,11 @@ class StatusManager {
     }
 }
 
+// Show Summary
+function showSummary() {
+    window.location.href = '/summary';
+}
+
 // Notification System
 const NotificationSystem = {
     show(message, className, duration = CONFIG.notificationDuration) {
@@ -385,12 +390,12 @@ const CleanupSystem = {
     formatResponse(data) {
         if (data.status === 'success') {
             return {
-                message: `Cleanup successful:\n- ${data.details.uploads_cleaned} files removed\n- ${data.details.analysis_cleaned} PE-Sieve folders cleaned`,
+                message: `Cleanup successful:\n- ${data.details.uploads_cleaned} files removed\n- ${data.details.analysis_cleaned} PE-Sieve folders cleaned\n- ${data.details.result_cleaned} result folders cleaned`,
                 className: 'bg-green-500'
             };
         } else if (data.status === 'warning') {
             return {
-                message: `Cleanup completed with warnings:\n- ${data.details.uploads_cleaned} files removed\n- ${data.details.analysis_cleaned} PE-Sieve folders cleaned\n\nErrors:\n${data.details.errors.join('\n')}`,
+                message: `Cleanup completed with warnings:\n- ${data.details.uploads_cleaned} files removed\n- ${data.details.analysis_cleaned} PE-Sieve folders cleaned\n- ${data.details.result_cleaned} result folders cleaned\n\nErrors:\n${data.details.errors.join('\n')}`,
                 className: 'bg-yellow-500'
             };
         } else {

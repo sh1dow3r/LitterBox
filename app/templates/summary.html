@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block page_title %}File Management{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-6">
+    <!-- Header Section -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-medium text-gray-100">File Management</h1>
+            <p class="text-base text-gray-400 mt-1">Manage uploaded files and analysis results</p>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="flex items-center space-x-3">
+            <button onclick="window.location.href='/'" 
+                    class="px-4 py-2 text-base text-white bg-red-500/10 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>Upload New File</span>
+            </button>
+            <button onclick="showSummaryCleanupWarning()" 
+                    class="px-4 py-2 text-base text-red-500 border border-red-900/20 rounded-lg hover:bg-red-500/10 transition-colors flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                <span>Clean All</span>
+            </button>
+            <button onclick="loadFiles()" class="p-2 text-yellow-500 border border-yellow-900/20 rounded-lg hover:bg-yellow-500/10 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="bg-black/60 backdrop-blur-sm rounded-xl border border-gray-800 shadow-lg">
+        <!-- File List -->
+        <div class="p-6">
+            <!-- Stats Overview -->
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                    <div class="text-sm text-gray-500">Total Files</div>
+                    <div class="text-2xl font-semibold text-gray-300" id="totalFiles">0</div>
+                </div>
+                <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                    <div class="text-sm text-gray-500">Storage Used</div>
+                    <div class="text-2xl font-semibold text-gray-300" id="storageUsed">0 MB</div>
+                </div>
+                <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                    <div class="text-sm text-gray-500">Average Risk</div>
+                    <div class="flex flex-col items-start mt-1">
+                        <span id="averageRisk" class="px-2 py-1 text-sm rounded-lg inline-flex items-center justify-center font-medium">-</span>
+                        <span id="averageEntropy" class="text-xs text-gray-400 mt-1">Entropy: -</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search and Filter -->
+            <div class="flex items-center justify-between mb-6">
+                <div class="relative flex-1 max-w-md">
+                    <input type="text" 
+                           id="searchFiles" 
+                           placeholder="Search files..." 
+                           class="w-full bg-gray-900/30 border border-gray-800 rounded-lg px-4 py-2 text-gray-300 placeholder-gray-600 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                    <svg class="w-5 h-5 text-gray-500 absolute right-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <select id="filterType" 
+                            class="bg-gray-900/30 border border-gray-800 rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="all">All Types</option>
+                        <option value="exe">.exe</option>
+                        <option value="dll">.dll</option>
+                        <option value="bin">.bin</option>
+                        <option value="docx">.docx</option>
+                        <option value="xlsx">.xlsx</option>
+                        <option value="lnk">.lnk</option>
+                        <option value="sys">.sys</option>
+                    </select>
+                    <select id="filterRisk" class="bg-gray-900/30 border border-gray-800 rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="all">All Risks</option>
+                        <option value="high">High Risk</option>
+                        <option value="medium">Medium Risk</option>
+                        <option value="low">Low Risk</option>
+                    </select>
+                    <select id="sortBy" 
+                            class="bg-gray-900/30 border border-gray-800 rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="name">Name</option>
+                        <option value="size">Size</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- File Table -->
+            <div class="relative overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b border-gray-800">
+                            <th class="px-6 py-3 text-base font-medium text-gray-300">File Name</th>
+                            <!--<th class="px-6 py-3 text-base font-medium text-gray-300">Type</th>-->
+                            <th class="px-6 py-3 text-base font-medium text-gray-300">Risk</th>
+                            <th class="px-6 py-3 text-base font-medium text-gray-300">Size</th>
+                            <th class="px-6 py-3 text-base font-medium text-gray-300">Upload Date</th>
+                            <th class="px-6 py-3 text-base font-medium text-gray-300">Analysis Status</th>
+                            <th class="px-6 py-3 text-base font-medium text-gray-300">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fileList" class="divide-y divide-gray-800">
+                        <!-- File rows will be populated via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden text-center py-12">
+                <svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <h3 class="text-lg font-medium text-gray-300 mb-2">No files uploaded</h3>
+                <p class="text-gray-500">Upload a file to get started with analysis</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Row Template -->
+<template id="fileRowTemplate">
+    <tr class="border-b border-gray-800">
+        <td class="py-4">
+            <div class="flex flex-col">
+                <span data-field="fileName" class="text-gray-200"></span>
+                <span data-field="fileHash" class="text-sm text-gray-500 font-mono"></span>
+            </div>
+        </td>
+        <td class="text-left px-6">
+            <span data-field="fileRisk" class="inline-block min-w-[70px]"></span>
+            <br/>
+            <span data-field="fileEntropy" class="text-xs text-gray-400"></span>
+        </td>
+        <td class="text-center">
+            <span data-field="fileSize" class="text-gray-400"></span>
+        </td>
+        <td class="text-center">
+            <span data-field="fileUploadDate" class="text-gray-400"></span>
+        </td>
+        <td class="text-center">
+            <span data-field="fileAnalysisStatus"></span>
+        </td>
+        <td>
+            <div class="flex justify-end space-x-2">
+                <button data-action="view" class="p-2 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    </svg>
+                </button>
+                <button data-action="delete" class="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </button>
+            </div>
+        </td>
+    </tr>
+</template>
+
+<!-- Cleanup Warning Modal -->
+<div id="summaryCleanupWarningModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div class="bg-gray-900 rounded-xl border border-red-900/20 p-6 max-w-lg w-full mx-4">
+        <!-- Header -->
+        <div class="flex items-center space-x-3 mb-4">
+            <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-100">Warning: System Cleanup</h3>
+        </div>
+        
+        <!-- Content -->
+        <div class="text-gray-300 mb-6">
+            <p class="mb-4">This will permanently remove all uploaded files and analysis data.</p>
+            <p class="text-red-500">Are you sure you want to proceed?</p>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex justify-end space-x-3">
+            <button onclick="hideSummaryCleanupWarning()" 
+                    class="px-4 py-2 text-gray-400 hover:text-white">
+                Cancel
+            </button>
+            <button onclick="cleanupFiles()" 
+                    class="px-4 py-2 text-red-500 border border-red-900/20 rounded-lg hover:bg-red-500/10">
+                Proceed
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- File Delete Warning Modal -->
+<div id="fileDeleteWarningModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div class="bg-gray-900 rounded-xl border border-red-900/20 p-6 max-w-lg w-full mx-4">
+        <!-- Header -->
+        <div class="flex items-center space-x-3 mb-4">
+            <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            <h3 class="text-lg font-medium text-gray-100">Warning: Delete File</h3>
+        </div>
+        
+        <!-- Content -->
+        <div class="text-gray-300 mb-6">
+            <p class="mb-4">This will permanently remove the selected file and its analysis data.</p>
+            <p class="text-red-500">Are you sure you want to proceed?</p>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex justify-end space-x-3">
+            <button onclick="hideFileDeleteWarning()" 
+                    class="px-4 py-2 text-gray-400 hover:text-white">
+                Cancel
+            </button>
+            <button id="confirmDeleteButton"
+                    class="px-4 py-2 text-red-500 border border-red-900/20 rounded-lg hover:bg-red-500/10">
+                Delete
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/summary.js') }}"></script>
+{% endblock %} 
