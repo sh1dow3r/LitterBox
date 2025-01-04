@@ -412,44 +412,87 @@ def register_routes(app):
     @app.route('/file/<target>/<analysis_type>', methods=['GET'])
     def get_analysis_results(target, analysis_type):
         try:
-            # Find result folder for the given hash
             result_path = find_file_by_hash(target, app.config['upload']['result_folder'])
             if not result_path:
-                return jsonify({'error': 'Results not found'}), 404
+                return render_template('error.html', error='Results not found'), 404
 
-            # Handle different types of requests
+            # Load file info
+            file_info_path = os.path.join(result_path, 'file_info.json')
+            if not os.path.exists(file_info_path):
+                return render_template('error.html', error='File info not found'), 404
+            
+            with open(file_info_path, 'r') as f:
+                file_info = json.load(f)
+
             if analysis_type == 'info':
-                # Read and return the file info
-                file_info_path = os.path.join(result_path, 'file_info.json')
-                if not os.path.exists(file_info_path):
-                    return jsonify({'error': 'File info not found'}), 404
-
-                with open(file_info_path, 'r') as f:
-                    results = json.load(f)
-
+                return render_template('file_info.html', file_info=file_info)
+                
             elif analysis_type in ['static', 'dynamic']:
-                # Read and return the analysis results
                 results_file = f'{analysis_type}_analysis_results.json'
                 results_path = os.path.join(result_path, results_file)
                 if not os.path.exists(results_path):
-                    return jsonify({'error': 'Analysis results not found'}), 404
-
+                    return render_template('error.html', error=f'No {analysis_type} analysis results found'), 404
+                
                 with open(results_path, 'r') as f:
-                    results = json.load(f)
+                    analysis_results = json.load(f)
 
-            else:
-                return jsonify({'error': 'Invalid analysis type'}), 400
+                if analysis_type == 'static':
+                    # Calculate detection counts for static analysis with safe defaults
+                    try:
+                        yara_matches = analysis_results.get('yara', {}).get('matches', [])
+                        yara_detections = len(yara_matches) if yara_matches is not None else 0
+                    except:
+                        yara_detections = 0
 
-            return jsonify({
-                'status': 'success',
-                'results': results
-            })
+                    try:
+                        checkplz_findings = analysis_results.get('checkplz', {}).get('findings', {})
+                        checkplz_detections = 1 if checkplz_findings and checkplz_findings.get('initial_threat') else 0
+                    except:
+                        checkplz_detections = 0
+
+                    # Format scan duration as MM:SS.mmm
+                    try:
+                        scan_duration = analysis_results.get('checkplz', {}).get('findings', {}).get('scan_results', {}).get('scan_duration', 0)
+                        if scan_duration is None:
+                            scan_duration = 0
+                        minutes = int(scan_duration // 60)
+                        seconds = int(scan_duration % 60)
+                        milliseconds = int((scan_duration % 1) * 1000)
+                        formatted_duration = f"{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
+                    except:
+                        formatted_duration = "00:00.000"
+
+                    return render_template('static_analysis.html',
+                                         file_info=file_info,
+                                         analysis_results=analysis_results,
+                                         yara_detections=yara_detections,
+                                         checkplz_detections=checkplz_detections,
+                                         scan_duration=formatted_duration)
+                
+                elif analysis_type == 'dynamic':
+                    # Calculate detection counts for dynamic analysis
+                    yara_detections = len(analysis_results.get('yara', {}).get('matches', [])) if analysis_results.get('yara') else 0
+                    pesieve_detections = analysis_results.get('pe_sieve', {}).get('findings', {}).get('total_suspicious', 0)
+                    moneta_detections = (
+                        analysis_results.get('moneta', {}).get('findings', {}).get('total_private_rwx', 0) +
+                        analysis_results.get('moneta', {}).get('findings', {}).get('total_abnormal_private_exec', 0)
+                    )
+                    patriot_detections = len(analysis_results.get('patriot', {}).get('findings', {}).get('findings', []))
+                    hsb_detections = analysis_results.get('hsb', {}).get('findings', {}).get('summary', {}).get('total_findings', 0)
+
+                    return render_template('dynamic_analysis.html',
+                                        file_info=file_info,
+                                        analysis_results=analysis_results,
+                                        yara_detections=yara_detections,
+                                        pesieve_detections=pesieve_detections,
+                                        moneta_detections=moneta_detections,
+                                        patriot_detections=patriot_detections,
+                                        hsb_detections=hsb_detections)
+
+            return render_template('error.html', error='Invalid analysis type'), 400
 
         except Exception as e:
-            return jsonify({
-                'status': 'error',
-                'error': str(e)
-            }), 500
+            return render_template('error.html', error=str(e)), 500
 
     @app.route('/cleanup', methods=['POST'])
     def cleanup():
