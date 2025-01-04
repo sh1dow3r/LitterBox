@@ -603,4 +603,52 @@ def register_routes(app):
                 'issues': [str(e)]
             }), 500
 
+    @app.route('/files', methods=['GET'])
+    def get_files_summary():
+        try:
+            results_dir = app.config['upload']['result_folder']
+            summary = {}
+
+            # Iterate through all subdirectories in the results folder
+            for md5_dir in os.listdir(results_dir):
+                dir_path = os.path.join(results_dir, md5_dir)
+                if not os.path.isdir(dir_path):
+                    continue
+
+                # Read file_info.json
+                file_info_path = os.path.join(dir_path, 'file_info.json')
+                if not os.path.exists(file_info_path):
+                    continue
+
+                with open(file_info_path, 'r') as f:
+                    file_info = json.load(f)
+
+                # Check for existence of analysis results
+                static_exists = os.path.exists(os.path.join(dir_path, 'static_analysis_results.json'))
+                dynamic_exists = os.path.exists(os.path.join(dir_path, 'dynamic_analysis_results.json'))
+
+                # Create summary for this file
+                summary[md5_dir] = {
+                    'md5': file_info.get('md5', 'unknown'),
+                    'sha256': file_info.get('sha256', 'unknown'),
+                    'filename': file_info.get('original_name', 'unknown'),
+                    'result_dir_full_path': os.path.abspath(dir_path),
+                    'entropy_value': file_info.get('entropy_analysis', {}).get('value', 0),
+                    'detection_risk': file_info.get('entropy_analysis', {}).get('detection_risk', 'Unknown'),
+                    'has_static_analysis': static_exists,
+                    'has_dynamic_analysis': dynamic_exists
+                }
+
+            return jsonify({
+                'status': 'success',
+                'count': len(summary),
+                'files': summary
+            })
+
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'error': str(e)
+            }), 500
+
     return app
