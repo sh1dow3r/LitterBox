@@ -409,6 +409,48 @@ def register_routes(app):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/file/<target>/<analysis_type>', methods=['GET'])
+    def get_analysis_results(target, analysis_type):
+        try:
+            # Find result folder for the given hash
+            result_path = find_file_by_hash(target, app.config['upload']['result_folder'])
+            if not result_path:
+                return jsonify({'error': 'Results not found'}), 404
+
+            # Handle different types of requests
+            if analysis_type == 'info':
+                # Read and return the file info
+                file_info_path = os.path.join(result_path, 'file_info.json')
+                if not os.path.exists(file_info_path):
+                    return jsonify({'error': 'File info not found'}), 404
+
+                with open(file_info_path, 'r') as f:
+                    results = json.load(f)
+
+            elif analysis_type in ['static', 'dynamic']:
+                # Read and return the analysis results
+                results_file = f'{analysis_type}_analysis_results.json'
+                results_path = os.path.join(result_path, results_file)
+                if not os.path.exists(results_path):
+                    return jsonify({'error': 'Analysis results not found'}), 404
+
+                with open(results_path, 'r') as f:
+                    results = json.load(f)
+
+            else:
+                return jsonify({'error': 'Invalid analysis type'}), 400
+
+            return jsonify({
+                'status': 'success',
+                'results': results
+            })
+
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'error': str(e)
+            }), 500
+
     @app.route('/cleanup', methods=['POST'])
     def cleanup():
         try:
