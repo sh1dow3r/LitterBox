@@ -157,5 +157,6 @@ This project incorporates the following open-source components and acknowledges 
 
 ![dynamic](https://github.com/user-attachments/assets/c4251116-ebe3-45eb-9a22-0254a3945e5a)
 
-![summery](https://github.com/user-attachments/assets/e1a498fe-f0f5-4ef7-bb8d-74a53e10441c)
+![summery](https://github.com/user-attachments/assets/59415160-53c9-4605-9915-c732ca0d3dc6)
+
 
