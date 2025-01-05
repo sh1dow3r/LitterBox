@@ -152,12 +152,13 @@ This project incorporates the following open-source components and acknowledges 
 
 ## Screenshots
 
-![upload](https://github.com/user-attachments/assets/4cf6c2b1-4838-4b8d-8c5d-747bddfcf608)
+![upload](https://github.com/user-attachments/assets/4c0c134c-66b3-4172-9125-5b1d7ba8d99c)
 
-![static](https://github.com/user-attachments/assets/919d80a3-1652-47f9-8d3c-65d9d888b286)
+![dynamic](https://github.com/user-attachments/assets/61813e54-bdbc-48ff-8340-9991870e363a)
 
-![dynamic](https://github.com/user-attachments/assets/c4251116-ebe3-45eb-9a22-0254a3945e5a)
+![static](https://github.com/user-attachments/assets/9f10cff2-e0f8-4a33-9a8e-5e98667e4d4f)
 
-![summery](https://github.com/user-attachments/assets/59415160-53c9-4605-9915-c732ca0d3dc6)
+![summary](https://github.com/user-attachments/assets/58dc3840-4bd9-4dc3-9778-d9640b372af6)
+
 
 
