@@ -339,6 +339,73 @@ def format_hex(value):
     except (ValueError, TypeError):
         return str(value)
 
+
+def calculate_yara_risk(matches):
+    """
+    Calculate risk based on YARA matches considering severity levels.
+    Returns tuple of (risk_score, risk_description)
+    """
+    if not matches:
+        return 0, None
+
+    # Severity weights
+    SEVERITY_WEIGHTS = {
+        'CRITICAL': 100,
+        'HIGH': 80,
+        'MEDIUM': 50,
+        'LOW': 20,
+        'INFO': 5
+    }
+
+    # Map numeric severities to levels
+    NUMERIC_SEVERITY_MAP = {
+        100: 'CRITICAL',
+        80: 'HIGH',
+        50: 'MEDIUM',
+        20: 'LOW',
+        5: 'INFO'
+    }
+
+    max_severity_score = 0
+    severity_counts = {level: 0 for level in SEVERITY_WEIGHTS}
+
+    # Count matches by severity and track highest severity
+    for match in matches:
+        meta = match.get('metadata', {})
+        severity = meta.get('severity', 'MEDIUM')  # Default to MEDIUM if not specified
+
+        # Convert numeric severity to descriptive level if necessary
+        if isinstance(severity, int):
+            severity = NUMERIC_SEVERITY_MAP.get(severity, 'MEDIUM')
+        severity = severity.upper()
+
+        if severity in SEVERITY_WEIGHTS:
+            severity_counts[severity] += 1
+            max_severity_score = max(max_severity_score, SEVERITY_WEIGHTS[severity])
+
+    # Calculate weighted score
+    total_score = 0
+    risk_factors = []
+
+    for severity, count in severity_counts.items():
+        if count > 0:
+            # Base score for this severity level
+            severity_score = SEVERITY_WEIGHTS[severity]
+
+            # Additional matches of same severity add diminishing returns
+            if count > 1:
+                additional_score = sum(severity_score * (0.5 ** i) for i in range(1, count))
+                total_score += severity_score + additional_score
+            else:
+                total_score += severity_score
+
+            risk_factors.append(f"Found {count} {severity.lower()} severity YARA match{'es' if count > 1 else ''}")
+
+    # Normalize score to 0-100 range
+    normalized_score = min(100, total_score / 2)  # Divide by 2 to normalize, since total could exceed 100
+
+    return normalized_score, risk_factors
+
 def calculate_file_risk(file_info, static_results=None, dynamic_results=None):
     """
     Calculate overall file risk score based on all available analysis results.
@@ -351,9 +418,9 @@ def calculate_file_risk(file_info, static_results=None, dynamic_results=None):
     
     # Base weights for different analysis types
     WEIGHTS = {
-        'pe_info': 0.3,
-        'static': 0.3,
-        'dynamic': 0.4
+        'pe_info': 0.2,      # Reduced from 0.3
+        'static': 0.4,       # Increased from 0.3
+        'dynamic': 0.4       # Kept the same
     }
     
     # 1. PE Information Risk Calculation
@@ -364,16 +431,16 @@ def calculate_file_risk(file_info, static_results=None, dynamic_results=None):
         # Check section entropy
         high_entropy_sections = 0
         for section in pe_info.get('sections', []):
-            if section.get('entropy', 0) > 7.2:  # High risk threshold
+            if section.get('entropy', 0) > 7.2:
                 high_entropy_sections += 1
                 risk_factors.append(f"High entropy in section {section.get('name', 'UNKNOWN')}")
         
-        pe_risk += min(high_entropy_sections * 20, 40)  # Cap at 40 points
+        pe_risk += min(high_entropy_sections * 20, 40)
         
         # Check suspicious imports
         suspicious_imports = len(pe_info.get('suspicious_imports', []))
         if suspicious_imports > 0:
-            pe_risk += min(suspicious_imports * 10, 30)  # Cap at 30 points
+            pe_risk += min(suspicious_imports * 10, 30)
             risk_factors.append(f"Found {suspicious_imports} suspicious imports")
         
         # Check checksum mismatch
@@ -389,12 +456,12 @@ def calculate_file_risk(file_info, static_results=None, dynamic_results=None):
     if static_results:
         static_risk = 0
         
-        # YARA detections (static)
+        # YARA detections with severity consideration
         yara_matches = static_results.get('yara', {}).get('matches', [])
-        unique_yara_rules = len({match.get('rule') for match in yara_matches if match.get('rule')})
-        if unique_yara_rules > 0:
-            static_risk += min(unique_yara_rules * 15, 50)  # Cap at 50 points
-            risk_factors.append(f"Found {unique_yara_rules} YARA rule matches (static)")
+        yara_score, yara_factors = calculate_yara_risk(yara_matches)
+        if yara_score > 0:
+            static_risk += yara_score
+            risk_factors.extend([f"Static: {factor}" for factor in yara_factors])
         
         # CheckPLZ findings
         checkplz_findings = static_results.get('checkplz', {}).get('findings', {})
@@ -408,12 +475,12 @@ def calculate_file_risk(file_info, static_results=None, dynamic_results=None):
     if dynamic_results:
         dynamic_risk = 0
         
-        # YARA detections (dynamic)
+        # YARA detections with severity consideration
         yara_matches = dynamic_results.get('yara', {}).get('matches', [])
-        unique_yara_rules = len({match.get('rule') for match in yara_matches if match.get('rule')})
-        if unique_yara_rules > 0:
-            dynamic_risk += min(unique_yara_rules * 15, 40)  # Cap at 40 points
-            risk_factors.append(f"Found {unique_yara_rules} YARA rule matches (dynamic)")
+        yara_score, yara_factors = calculate_yara_risk(yara_matches)
+        if yara_score > 0:
+            dynamic_risk += yara_score
+            risk_factors.extend([f"Dynamic: {factor}" for factor in yara_factors])
         
         # PE-Sieve detections
         pesieve_suspicious = int(dynamic_results.get('pe_sieve', {})

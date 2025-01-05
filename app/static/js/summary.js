@@ -1,3 +1,6 @@
+// app/static/js/summery.js
+
+
 // DOM Elements
 const elements = {
     fileList: document.getElementById('fileList'),
