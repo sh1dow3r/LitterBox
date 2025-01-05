@@ -754,4 +754,61 @@ def register_routes(app):
                 'message': str(e)
             }), 500
 
+
+    @app.route('/api/results/<target>/static', methods=['GET'])
+    def api_static_results(target):
+        try:
+            result_path = utils.find_file_by_hash(target, app.config['upload']['result_folder'])
+            if not result_path:
+                return jsonify({'error': 'Results not found'}), 404
+
+            static_path = os.path.join(result_path, 'static_analysis_results.json')
+            if not os.path.exists(static_path):
+                return jsonify({'error': 'Static analysis results not found'}), 404
+
+            with open(static_path, 'r') as f:
+                return jsonify(json.load(f))
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route('/api/results/<target>/dynamic', methods=['GET'])
+    def api_dynamic_results(target):
+        try:
+            # Handle PID-based results
+            if target.isdigit():
+                result_folder = os.path.join(app.config['upload']['result_folder'], f'dynamic_{target}')
+                dynamic_path = os.path.join(result_folder, 'dynamic_analysis_results.json')
+            else:
+                # Handle file-based results
+                result_path = utils.find_file_by_hash(target, app.config['upload']['result_folder'])
+                if not result_path:
+                    return jsonify({'error': 'Results not found'}), 404
+                dynamic_path = os.path.join(result_path, 'dynamic_analysis_results.json')
+
+            if not os.path.exists(dynamic_path):
+                return jsonify({'error': 'Dynamic analysis results not found'}), 404
+
+            with open(dynamic_path, 'r') as f:
+                return jsonify(json.load(f))
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+
+    @app.route('/api/results/<target>/info', methods=['GET'])
+    def api_file_info(target):
+        try:
+            result_path = utils.find_file_by_hash(target, app.config['upload']['result_folder'])
+            if not result_path:
+                return jsonify({'error': 'File info not found'}), 404
+
+            file_info_path = os.path.join(result_path, 'file_info.json')
+            if not os.path.exists(file_info_path):
+                return jsonify({'error': 'File info not found'}), 404
+
+            with open(file_info_path, 'r') as f:
+                return jsonify(json.load(f))
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     return app
