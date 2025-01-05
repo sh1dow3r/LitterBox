@@ -81,18 +81,22 @@ GET    /analyze/static/<hash>         # Static file analysis
 POST   /analyze/dynamic/<hash>        # Dynamic file analysis
 POST   /analyze/dynamic/<pid>         # Process analysis
 GET    /files                         # Get list of processed files
-GET    /api/results/<hash>/info       # Get file info
-GET    /api/results/<hash>/static     # Get results for file static analysis
-GET    /api/results/<hash>/dynamic    # Get results for file dynamic analysis
-GET    /api/results/<pid>/dynamic     # Get results for pid analysis
+GET    /api/results/<hash>/info       # Get Json file info
+GET    /api/results/<hash>/static     # Get Json results for file static analysis
+GET    /api/results/<hash>/dynamic    # Get Json results for file dynamic analysis
+GET    /api/results/<pid>/dynamic     # Get Json results for pid analysis
+GET    /results/<hash>/info           # Get file info
+GET    /results/<hash>/static         # Get results for file static analysis
+GET    /results/<hash>/dynamic        # Get results for file dynamic analysis
+GET    /results/<pid>/dynamic         # Get results for pid analysis
 ```
 
 ### System Management
 ```http
 GET  /health                 # System health and tool status check
 POST /cleanup                # Clean analysis artifacts and uploads
-DELETE /file/<hash>          # Delete single analysis
 POST /validate/<pid>         # Validate process accessibility
+DELETE /file/<hash>          # Delete single analysis
 ```
 ## Installation
 
