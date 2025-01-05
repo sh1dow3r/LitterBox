@@ -100,7 +100,7 @@ GET    /results/<hash>/static    # Get results for file static analysis
 GET    /results/<hash>/dynamic   # Get results for file dynamic analysis
 GET    /results/<pid>/dynamic    # Get results for pid analysis
 ```
-### System Management
+#### System Management
 ```http
 GET  /health                 # System health and tool status check
 POST /cleanup                # Clean analysis artifacts and uploads
