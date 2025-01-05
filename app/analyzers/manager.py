@@ -81,7 +81,7 @@ class AnalysisManager:
                 )
                 pid = process.pid
                 # Wait for process initialization
-                time.sleep(3)
+                time.sleep(5)
             
             # Run all dynamic analyzers
             for name, analyzer in self.dynamic_analyzers.items():

@@ -8,10 +8,19 @@
             <h1 class="text-xl font-medium text-gray-100">Analysis Summary</h1>
             <p class="text-base text-gray-500 mb-6">Comprehensive overview of all scan results.</p>
         </div>
-        <button onclick="window.location.href='/file/{{ file_info.md5 }}/info'" 
-                class="px-4 py-2 bg-gray-500/10 text-gray-400 border border-gray-800 rounded-lg hover:bg-gray-500/20 transition-colors">
-            Back to File Info
-        </button>
+        {% if file_info %}
+            <button onclick="window.location.href='/results/{{ file_info.md5 }}/info'" 
+                    class="px-4 py-2 bg-blue-500/10 text-blue-500 border border-blue-500 rounded-lg hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-colors"
+                    aria-label="Navigate back to file information">
+                Back to File Info
+            </button>
+        {% else %}
+            <button onclick="window.location.href='/summary'" 
+                    class="px-4 py-2 bg-blue-500/10 text-blue-500 border border-blue-500 rounded-lg hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition-colors"
+                    aria-label="Navigate back to summary">
+                Back to Summary
+            </button>
+        {% endif %}
     </div>
 
     <!-- Target Details -->
@@ -48,6 +57,7 @@
             </div>
         </div>
     </div>
+
     <!-- Scanner Results Table -->
     <div class="bg-gray-900/30 rounded-lg border border-gray-800 overflow-hidden">
         <table class="w-full">
@@ -100,14 +110,48 @@
                         {% if pesieve_detections %}
                             {% set findings = analysis_results.pe_sieve.findings %}
                             <div class="text-base text-gray-400">
-                                <div>Implanted: {{ findings.implanted }}</div>
-                                <div>Implanted PE: {{ findings.implanted_pe }}</div>
-                                <div>Implanted shellcode: {{ findings.implanted_shc }}</div>
+                                {% if findings.total_scanned > 0 %}
+                                    <div>Total Scanned: {{ findings.total_scanned }}</div>
+                                {% endif %}
+                                {% if findings.skipped > 0 %}
+                                    <div>Skipped: {{ findings.skipped }}</div>
+                                {% endif %}
+                                {% if findings.hooked > 0 %}
+                                    <div>Hooked: {{ findings.hooked }}</div>
+                                {% endif %}
+                                {% if findings.replaced > 0 %}
+                                    <div>Replaced: {{ findings.replaced }}</div>
+                                {% endif %}
+                                {% if findings.hdrs_modified > 0 %}
+                                    <div>Headers Modified: {{ findings.hdrs_modified }}</div>
+                                {% endif %}
+                                {% if findings.iat_hooks > 0 %}
+                                    <div>IAT Hooks: {{ findings.iat_hooks }}</div>
+                                {% endif %}
+                                {% if findings.implanted > 0 %}
+                                    <div>Implanted: {{ findings.implanted }}</div>
+                                {% endif %}
+                                {% if findings.implanted_pe > 0 %}
+                                    <div>Implanted PE: {{ findings.implanted_pe }}</div>
+                                {% endif %}
+                                {% if findings.implanted_shc > 0 %}
+                                    <div>Implanted Shellcode: {{ findings.implanted_shc }}</div>
+                                {% endif %}
+                                {% if findings.unreachable > 0 %}
+                                    <div>Unreachable Files: {{ findings.unreachable }}</div>
+                                {% endif %}
+                                {% if findings.other > 0 %}
+                                    <div>Other: {{ findings.other }}</div>
+                                {% endif %}
+                                {% if findings.total_suspicious > 0 %}
+                                    <div>Total Suspicious: {{ findings.total_suspicious }}</div>
+                                {% endif %}
                             </div>
                         {% else %}
                             <span class="text-base text-gray-400">No modifications detected</span>
                         {% endif %}
                     </td>
+
                 </tr>
 
                 <!-- Moneta Results Row -->

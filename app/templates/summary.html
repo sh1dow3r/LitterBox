@@ -1,16 +1,15 @@
-<!-- app/templates/summery.html -->
+<!-- app/templates/summary.html -->
 
 {% extends "base.html" %}
 
-{% block page_title %}File Management{% endblock %}
+{% block page_title %}Results Summary{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto px-4 py-6">
     <!-- Header Section -->
     <div class="flex items-center justify-between mb-6">
         <div>
-            <h1 class="text-2xl font-medium text-gray-100">File Management</h1>
-            <p class="text-base text-gray-400 mt-1">Manage uploaded files and analysis results</p>
+            <p class="text-base text-gray-400 mt-1">Manage analysis results and uploaded files</p>
         </div>
         
         <!-- Action Buttons -->
@@ -29,11 +28,24 @@
                 </svg>
                 <span>Clean All</span>
             </button>
-            <button onclick="loadFiles()" class="p-2 text-yellow-500 border border-yellow-900/20 rounded-lg hover:bg-yellow-500/10 transition-colors">
+            <!-- New Toggle Button -->
+            <button onclick="toggleProcessAnalysis()" 
+                    aria-controls="processAnalysisCard" 
+                    aria-expanded="false"
+                    class="px-4 py-2 text-purple-500 border border-purple-500/30 rounded-lg hover:bg-purple-500/10 transition-colors flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <!-- Example SVG icon -->
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span>Show Process Analysis</span>
+            </button>
+
+            <button onclick="loadFiles()" class="p-2 text-blue-500 border border-blue-900/20 rounded-lg hover:bg-blue-500/10 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                 </svg>
             </button>
+
         </div>
     </div>
 
@@ -41,6 +53,8 @@
     <div class="bg-black/60 backdrop-blur-sm rounded-xl border border-gray-800 shadow-lg">
         <!-- File List -->
         <div class="p-6">
+            <h2 class="text-xl font-medium text-gray-100 mb-4">File Analysis Results</h2>
+
             <!-- Stats Overview -->
             <div class="grid grid-cols-3 gap-4 mb-6">
                 <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
@@ -131,6 +145,58 @@
                 <p class="text-gray-500">Upload a file to get started with analysis</p>
             </div>
         </div>
+        <!-- After the existing file-based div, add: -->
+        <div id="processAnalysisCard" class="hidden bg-black/60 backdrop-blur-sm rounded-xl border border-gray-800 shadow-lg mt-6">
+            <!-- Process Analysis List -->
+            <div class="p-6">
+                <h2 class="text-xl font-medium text-gray-100 mb-4">Process Analysis Results</h2>
+                
+                <!-- Process Stats Overview -->
+                <div class="grid grid-cols-3 gap-4 mb-6">
+                    <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                        <div class="text-sm text-gray-500">Total Processes</div>
+                        <div class="text-2xl font-semibold text-gray-300" id="totalProcesses">0</div>
+                    </div>
+                    <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                        <div class="text-sm text-gray-500">High Risk Processes</div>
+                        <div class="text-2xl font-semibold text-gray-300" id="highRiskProcesses">0</div>
+                    </div>
+                    <div class="bg-gray-900/30 rounded-lg border border-gray-800 p-4">
+                        <div class="text-sm text-gray-500">Average Risk</div>
+                        <div class="flex flex-col items-start mt-1">
+                            <span id="processAverageRisk" class="px-2 py-1 text-sm rounded-lg inline-flex items-center justify-center font-medium">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Process Table -->
+                <div class="relative overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-gray-800">
+                                <th class="px-6 py-3 text-base font-medium text-gray-300">Process Name</th>
+                                <th class="px-6 py-3 text-base font-medium text-gray-300">PID</th>
+                                <th class="px-6 py-3 text-base font-medium text-gray-300">Arch</th>
+                                <th class="px-6 py-3 text-base font-medium text-gray-300">Risk</th>
+                                <th class="px-6 py-3 text-base font-medium text-gray-300">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processList" class="divide-y divide-gray-800">
+                            <!-- Process rows will be populated via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State for Processes -->
+                <div id="processEmptyState" class="hidden text-center py-12">
+                    <svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <h3 class="text-lg font-medium text-gray-300 mb-2">No process analysis results</h3>
+                    <p class="text-gray-500">No processes have been analyzed yet</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -175,6 +241,43 @@
     </tr>
 </template>
 
+<!-- Process Row Template -->
+<template id="processRowTemplate">
+    <tr class="border-b border-gray-800">
+        <td class="py-4 px-6">
+            <div class="flex flex-col">
+                <span data-field="processName" class="text-gray-200"></span>
+                <span data-field="processPath" class="text-sm text-gray-500"></span>
+            </div>
+        </td>
+        <td class="text-left px-6">
+            <span data-field="pid" class="text-gray-200 font-mono"></span>
+        </td>
+        <td class="text-center px-6">
+            <span data-field="processArch" class="text-gray-400"></span>
+        </td>
+        <td class="text-left px-6">
+            <span data-field="processRisk" class="inline-block min-w-[70px]"></span>
+        </td>
+        <td>
+            <div class="flex justify-end space-x-2">
+                <button data-action="view" class="p-2 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-500/10 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    </svg>
+                </button>
+                <button data-action="delete" class="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-500/10 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </button>
+            </div>
+        </td>
+    </tr>
+</template>
+
+
 <!-- Cleanup Warning Modal -->
 <div id="summaryCleanupWarningModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
     <div class="bg-gray-900 rounded-xl border border-red-900/20 p-6 max-w-lg w-full mx-4">
@@ -194,7 +297,7 @@
 
         <!-- Buttons -->
         <div class="flex justify-end space-x-3">
-            <button onclick="hideSummaryCleanupWarning()" 
+            <button onclick="hideCleanupWarning()" 
                     class="px-4 py-2 text-gray-400 hover:text-white">
                 Cancel
             </button>

@@ -1,552 +1,23 @@
 # app/routes.py
+
 import datetime
 import glob
-import hashlib
-import math
-import mimetypes
+import json
 import os
 import shutil
-import psutil
-import pefile
-import json
-from .analyzers.manager import AnalysisManager
 from flask import render_template, request, jsonify
-from werkzeug.utils import secure_filename
-from oletools.olevba import VBA_Parser
-
-def allowed_file(filename, config):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in config['upload']['allowed_extensions']
-
-def calculate_entropy(data):
-    """Calculate Shannon entropy of data with detection insights"""
-    if len(data) == 0:
-        return 0
-    
-    # Convert to bytes if not already
-    if isinstance(data, str):
-        data = data.encode()
-
-    # Count byte frequencies
-    byte_counts = {}
-    for byte in data:
-        byte_counts[byte] = byte_counts.get(byte, 0) + 1
-
-    # Calculate entropy
-    entropy = 0
-    for count in byte_counts.values():
-        p_x = count / len(data)
-        entropy += -p_x * math.log2(p_x)
-
-    return round(entropy, 2)
-
-def get_pe_info(filepath):
-    """Enhanced PE file analysis with deep import analysis and detection vectors"""
-    try:
-        pe = pefile.PE(filepath)
-        
-        # Enhanced section analysis
-        sections_info = []
-        suspicious_imports = []
-        high_risk_imports = {
-            'kernel32.dll': {
-                'createremotethread': 'Process Injection capability detected',
-                'virtualallocex': 'Memory allocation in remote process detected',
-                'writeprocessmemory': 'Process memory manipulation detected',
-                'getprocaddress': 'Dynamic API resolution - possible evasion technique',
-                'loadlibrarya': 'Dynamic library loading - possible evasion technique',
-                'openprocess': 'Process manipulation capability',
-                'createtoolhelp32snapshot': 'Process enumeration capability',
-                'process32first': 'Process enumeration capability',
-                'process32next': 'Process enumeration capability'
-            },
-            'user32.dll': {
-                'getasynckeystate': 'Potential keylogging capability',
-                'getdc': 'Screen capture capability',
-                'getforegroundwindow': 'Window/Process monitoring capability'
-            },
-            'wininet.dll': {
-                'internetconnect': 'Network communication capability',
-                'internetopen': 'Network communication capability',
-                'ftpputfile': 'FTP upload capability',
-                'ftpopenfile': 'FTP communication capability'
-            },
-            'urlmon.dll': {
-                'urldownloadtofile': 'File download capability'
-            }
-        }
-        """
-        https://practicalsecurityanalytics.com/threat-hunting-with-function-imports/
-        """
-        # Check imports for suspicious behavior
-        if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
-            for entry in pe.DIRECTORY_ENTRY_IMPORT:
-                dll_name = entry.dll.decode().lower()
-                
-                # Check each imported function
-                for imp in entry.imports:
-                    if imp.name:
-                        func_name = imp.name.decode().lower()
-                        
-                        # Check if this is a high-risk import
-                        if dll_name in high_risk_imports and func_name in high_risk_imports[dll_name]:
-                            suspicious_imports.append({
-                                'dll': dll_name,
-                                'function': func_name,
-                                'note': high_risk_imports[dll_name][func_name],
-                                'hint': imp.hint if hasattr(imp, 'hint') else 0
-                            })
-        
-        """
-        https://practicalsecurityanalytics.com/file-entropy/
-        """
-        # Section Analysis with entropy
-        for section in pe.sections:
-            section_name = section.Name.decode().rstrip('\x00')
-            section_data = section.get_data()
-            section_entropy = calculate_entropy(section_data)
-            
-            # Standard PE sections
-            standard_sections = ['.text', '.data', '.bss', '.rdata', '.edata', '.idata', '.pdata', '.reloc', '.rsrc', '.tls', '.debug']
-            is_standard = section_name in standard_sections
-            
-            sections_info.append({
-                'name': section_name,
-                'entropy': section_entropy,
-                'size': len(section_data),
-                'characteristics': section.Characteristics,
-                'is_standard': is_standard,
-                'detection_notes': []
-            })
-            
-            # Add section-specific detection notes
-            if section_entropy > 7.2:
-                sections_info[-1]['detection_notes'].append('High entropy may trigger detection')
-            if section_name == '.text' and section_entropy > 7.0:
-                sections_info[-1]['detection_notes'].append('Unusual entropy for code section')
-            if not is_standard:
-                sections_info[-1]['detection_notes'].append('Non-standard section name - may trigger detection')
-
-        """
-        https://practicalsecurityanalytics.com/pe-checksum/
-        """
-        # Check PE Checksum
-        is_valid_checksum = pe.verify_checksum()
-        calculated_checksum = pe.generate_checksum()
-        stored_checksum = pe.OPTIONAL_HEADER.CheckSum
-        
-        info = {
-            'file_type': 'PE32+ executable' if pe.PE_TYPE == pefile.OPTIONAL_HEADER_MAGIC_PE_PLUS else 'PE32 executable',
-            'machine_type': pefile.MACHINE_TYPE[pe.FILE_HEADER.Machine].replace('IMAGE_FILE_MACHINE_', ''),
-            'compile_time': datetime.datetime.fromtimestamp(pe.FILE_HEADER.TimeDateStamp).strftime('%Y-%m-%d %H:%M:%S'),
-            'subsystem': pefile.SUBSYSTEM_TYPE[pe.OPTIONAL_HEADER.Subsystem].replace('IMAGE_SUBSYSTEM_', ''),
-            'entry_point': hex(pe.OPTIONAL_HEADER.AddressOfEntryPoint),
-            'sections': sections_info,
-            'imports': list(set(entry.dll.decode() for entry in getattr(pe, 'DIRECTORY_ENTRY_IMPORT', []))),
-            'suspicious_imports': suspicious_imports,
-            'detection_notes': [],
-            'checksum_info': {
-                'is_valid': is_valid_checksum,
-                'stored_checksum': hex(stored_checksum),
-                'calculated_checksum': hex(calculated_checksum),
-                'needs_update': calculated_checksum != stored_checksum
-            }
-        }
-        
-        # Add overall detection insights
-        if not is_valid_checksum:
-            info['detection_notes'].append('Invalid PE checksum - Common in modified/packed files (~83% correlation with malware)')
-
-        if suspicious_imports:
-            info['detection_notes'].append(f'Found {len(suspicious_imports)} suspicious API imports - Review import analysis')
-            
-        if any(section['entropy'] > 7.2 for section in sections_info):
-            info['detection_notes'].append('High entropy sections detected - Consider entropy reduction techniques')
-        
-        if '.text' in [section['name'] for section in sections_info]:
-            text_section = next(s for s in sections_info if s['name'] == '.text')
-            if text_section['entropy'] > 7.0:
-                info['detection_notes'].append('Packed/encrypted code section may trigger heuristics')
-
-        if any(not section['is_standard'] for section in sections_info):
-            info['detection_notes'].append('Non-standard PE sections detected - May trigger static analysis')
-                
-        pe.close()
-        return {'pe_info': info}
-    except Exception as e:
-        print(f"Error analyzing PE file: {e}")
-        return {'pe_info': None}
-
-def get_office_info(filepath):
-    """Enhanced Office document analysis with detection insights"""
-    try:
-        vbaparser = VBA_Parser(filepath)
-        detection_notes = []
-        
-        info = {
-            'file_type': 'Microsoft Office Document',
-            'has_macros': vbaparser.detect_vba_macros(),
-            'macro_info': None,
-            'detection_notes': detection_notes
-        }
-        
-        if vbaparser.detect_vba_macros():
-            macro_analysis = vbaparser.analyze_macros()
-            info['macro_info'] = macro_analysis
-            
-            # Analyze macros for detection vectors
-            macro_text = str(macro_analysis).lower()
-            detection_patterns = {
-                'shell': 'Shell command execution detected',
-                'wscript': 'WScript execution detected',
-                'powershell': 'PowerShell execution detected',
-                'http': 'Network communication detected',
-                'auto': 'Auto-execution mechanism detected',
-                'document_open': 'Document open auto-execution',
-                'windowshide': 'Hidden window execution',
-                'createobject': 'COM object creation detected'
-            }
-            
-            for pattern, note in detection_patterns.items():
-                if pattern in macro_text:
-                    detection_notes.append(note)
-        
-        vbaparser.close()
-        return {'office_info': info}
-    except Exception as e:
-        print(f"Error analyzing Office file: {e}")
-        return {'office_info': None}
-
-def save_uploaded_file(file, upload_folder, result_folder):
-    file_content = file.read()
-    file.close()
-    md5_hash = hashlib.md5(file_content).hexdigest()
-    sha256_hash = hashlib.sha256(file_content).hexdigest()
-    
-    original_filename = secure_filename(file.filename)
-    extension = os.path.splitext(original_filename)[1].lower()
-    filename = f"{md5_hash}_{original_filename}"
-    
-    os.makedirs(upload_folder, exist_ok=True)
-    filepath = os.path.join(upload_folder, filename)
-    os.makedirs(result_folder, exist_ok=True)
-    os.makedirs(os.path.join(result_folder, filename), exist_ok=True)
-    
-    with open(filepath, 'wb') as f:
-        f.write(file_content)
-
-    entropy_value = calculate_entropy(file_content)
-    
-    file_info = {
-        'original_name': original_filename,
-        'md5': md5_hash,
-        'sha256': sha256_hash,
-        'size': len(file_content),
-        'extension': extension,
-        'mime_type': mimetypes.guess_type(original_filename)[0] or 'application/octet-stream',
-        'upload_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'entropy': entropy_value,
-        'entropy_analysis': {
-            'value': entropy_value,
-            'detection_risk': 'High' if entropy_value > 7.2 else 
-                            'Medium' if entropy_value > 6.8 else 'Low',
-            'notes': []
-        }
-    }
-    
-    # Add entropy-based detection notes
-    if entropy_value > 7.2:
-        file_info['entropy_analysis']['notes'].append(
-            'High entropy indicates encryption/packing - consider entropy reduction')
-    elif entropy_value > 6.8:
-        file_info['entropy_analysis']['notes'].append(
-            'Moderate entropy - may trigger basic detection')
-    
-    # Add specific file type information for PE files
-    if extension in ['.exe', '.dll', '.sys']:
-        file_info.update(get_pe_info(filepath))
-
-    # Add specific file type information for Office documents
-    if extension in ['.docx', '.xlsx', '.doc', '.xls', '.xlsm', '.docm']:
-        office_result = get_office_info(filepath)
-        if 'error' in office_result:
-            print(f"Warning: {office_result['error']}")
-        file_info.update(office_result)
-
-    # save file info to result folder
-    with open(os.path.join(result_folder, filename, 'file_info.json'), 'w') as f:
-        json.dump(file_info, f)
-
-    return file_info
-
-def find_file_by_hash(file_hash, upload_folder):
-    for filename in os.listdir(upload_folder):
-        if filename.startswith(file_hash):
-            return os.path.join(upload_folder, filename)
-    return None
-
-def check_tool(tool_path):
-    """Check if a tool is accessible and presumably executable."""
-    return os.path.isfile(tool_path) and os.access(tool_path, os.X_OK)
-
-
-def validate_pid(pid):
-    """
-    Validate if a PID exists and is accessible.
-    
-    Args:
-        pid (int): Process ID to validate
-        
-    Returns:
-        tuple: (bool, str) - (is_valid, error_message)
-    """
-    try:
-        pid = int(pid)
-        if pid <= 0:
-            return False, "Invalid PID: must be a positive integer"
-            
-        # Check if process exists
-        if not psutil.pid_exists(pid):
-            return False, f"Process with PID {pid} does not exist"
-            
-        # Try to get process info to check accessibility
-        try:
-            process = psutil.Process(pid)
-            process.name()  # Try to access process name to verify permissions
-        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-            return False, f"Cannot access process {pid}: {str(e)}"
-            
-        return True, None
-        
-    except ValueError:
-        return False, "Invalid PID: must be a number"
-    except Exception as e:
-        return False, f"Error validating PID: {str(e)}"
-
-
-def get_entropy_risk_level(entropy):
-    if entropy > 7.2:
-        return 'High'
-    elif entropy > 6.8:
-        return 'Medium'
-    return 'Low'
-
-def format_hex(value):
-    if isinstance(value, str) and value.startswith('0x'):
-        return value.lower()
-    try:
-        return f"0x{int(value):x}"
-    except (ValueError, TypeError):
-        return str(value)
-
-
-def calculate_yara_risk(matches):
-    """
-    Calculate risk based on YARA matches considering severity levels.
-    Returns tuple of (risk_score, risk_description)
-    """
-    if not matches:
-        return 0, None
-
-    # Severity weights
-    SEVERITY_WEIGHTS = {
-        'CRITICAL': 100,
-        'HIGH': 80,
-        'MEDIUM': 50,
-        'LOW': 20,
-        'INFO': 5
-    }
-
-    # Map numeric severities to levels
-    NUMERIC_SEVERITY_MAP = {
-        100: 'CRITICAL',
-        80: 'HIGH',
-        50: 'MEDIUM',
-        20: 'LOW',
-        5: 'INFO'
-    }
-
-    max_severity_score = 0
-    severity_counts = {level: 0 for level in SEVERITY_WEIGHTS}
-
-    # Count matches by severity and track highest severity
-    for match in matches:
-        meta = match.get('metadata', {})
-        severity = meta.get('severity', 'MEDIUM')  # Default to MEDIUM if not specified
-
-        # Convert numeric severity to descriptive level if necessary
-        if isinstance(severity, int):
-            severity = NUMERIC_SEVERITY_MAP.get(severity, 'MEDIUM')
-        severity = severity.upper()
-
-        if severity in SEVERITY_WEIGHTS:
-            severity_counts[severity] += 1
-            max_severity_score = max(max_severity_score, SEVERITY_WEIGHTS[severity])
-
-    # Calculate weighted score
-    total_score = 0
-    risk_factors = []
-
-    for severity, count in severity_counts.items():
-        if count > 0:
-            # Base score for this severity level
-            severity_score = SEVERITY_WEIGHTS[severity]
-
-            # Additional matches of same severity add diminishing returns
-            if count > 1:
-                additional_score = sum(severity_score * (0.5 ** i) for i in range(1, count))
-                total_score += severity_score + additional_score
-            else:
-                total_score += severity_score
-
-            risk_factors.append(f"Found {count} {severity.lower()} severity YARA match{'es' if count > 1 else ''}")
-
-    # Normalize score to 0-100 range
-    normalized_score = min(100, total_score / 2)  # Divide by 2 to normalize, since total could exceed 100
-
-    return normalized_score, risk_factors
-
-def calculate_file_risk(file_info, static_results=None, dynamic_results=None):
-    """
-    Calculate overall file risk score based on all available analysis results.
-    Returns a tuple of (risk_score, risk_factors) where:
-    - risk_score is a float between 0 and 100
-    - risk_factors is a list of contributing risk factors
-    """
-    risk_score = 0
-    risk_factors = []
-    
-    # Base weights for different analysis types
-    WEIGHTS = {
-        'pe_info': 0.2,      # Reduced from 0.3
-        'static': 0.4,       # Increased from 0.3
-        'dynamic': 0.4       # Kept the same
-    }
-    
-    # 1. PE Information Risk Calculation
-    if file_info.get('pe_info'):
-        pe_risk = 0
-        pe_info = file_info['pe_info']
-        
-        # Check section entropy
-        high_entropy_sections = 0
-        for section in pe_info.get('sections', []):
-            if section.get('entropy', 0) > 7.2:
-                high_entropy_sections += 1
-                risk_factors.append(f"High entropy in section {section.get('name', 'UNKNOWN')}")
-        
-        pe_risk += min(high_entropy_sections * 20, 40)
-        
-        # Check suspicious imports
-        suspicious_imports = len(pe_info.get('suspicious_imports', []))
-        if suspicious_imports > 0:
-            pe_risk += min(suspicious_imports * 10, 30)
-            risk_factors.append(f"Found {suspicious_imports} suspicious imports")
-        
-        # Check checksum mismatch
-        if pe_info.get('checksum_info'):
-            checksum = pe_info['checksum_info']
-            if checksum.get('stored_checksum') != checksum.get('calculated_checksum'):
-                pe_risk += 30
-                risk_factors.append("PE checksum mismatch detected")
-        
-        risk_score += (pe_risk / 100) * WEIGHTS['pe_info'] * 100
-
-    # 2. Static Analysis Risk Calculation
-    if static_results:
-        static_risk = 0
-        
-        # YARA detections with severity consideration
-        yara_matches = static_results.get('yara', {}).get('matches', [])
-        yara_score, yara_factors = calculate_yara_risk(yara_matches)
-        if yara_score > 0:
-            static_risk += yara_score
-            risk_factors.extend([f"Static: {factor}" for factor in yara_factors])
-        
-        # CheckPLZ findings
-        checkplz_findings = static_results.get('checkplz', {}).get('findings', {})
-        if checkplz_findings.get('initial_threat'):
-            static_risk += 50
-            risk_factors.append("CheckPLZ detected initial threat indicators")
-        
-        risk_score += (static_risk / 100) * WEIGHTS['static'] * 100
-
-    # 3. Dynamic Analysis Risk Calculation
-    if dynamic_results:
-        dynamic_risk = 0
-        
-        # YARA detections with severity consideration
-        yara_matches = dynamic_results.get('yara', {}).get('matches', [])
-        yara_score, yara_factors = calculate_yara_risk(yara_matches)
-        if yara_score > 0:
-            dynamic_risk += yara_score
-            risk_factors.extend([f"Dynamic: {factor}" for factor in yara_factors])
-        
-        # PE-Sieve detections
-        pesieve_suspicious = int(dynamic_results.get('pe_sieve', {})
-            .get('findings', {}).get('total_suspicious', 0))
-        if pesieve_suspicious > 0:
-            dynamic_risk += min(pesieve_suspicious * 20, 40)  # Cap at 40 points
-            risk_factors.append(f"PE-Sieve found {pesieve_suspicious} suspicious indicators")
-        
-        # Moneta memory anomalies
-        moneta_findings = dynamic_results.get('moneta', {}).get('findings', {})
-        memory_anomalies = sum([
-            int(moneta_findings.get('total_private_rwx', 0) or 0),
-            int(moneta_findings.get('total_private_rx', 0) or 0),
-            int(moneta_findings.get('total_modified_code', 0) or 0),
-            int(moneta_findings.get('total_heap_executable', 0) or 0),
-            int(moneta_findings.get('total_modified_pe_header', 0) or 0),
-            int(moneta_findings.get('total_inconsistent_x', 0) or 0),
-            int(moneta_findings.get('total_missing_peb', 0) or 0),
-            int(moneta_findings.get('total_mismatching_peb', 0) or 0)
-        ])
-        if memory_anomalies > 0:
-            dynamic_risk += min(memory_anomalies * 10, 30)  # Cap at 30 points
-            risk_factors.append(f"Found {memory_anomalies} memory anomalies")
-        
-        # Patriot detections
-        patriot_findings = len(dynamic_results.get('patriot', {})
-            .get('findings', {}).get('findings', []))
-        if patriot_findings > 0:
-            dynamic_risk += min(patriot_findings * 15, 30)  # Cap at 30 points
-            risk_factors.append(f"Found {patriot_findings} suspicious behaviors")
-        
-        # HSB detections
-        hsb_findings = dynamic_results.get('hsb', {}).get('findings', {})
-        if hsb_findings and hsb_findings.get('detections'):
-            hsb_detections = len(hsb_findings['detections'][0].get('findings', []))
-            if hsb_detections > 0:
-                dynamic_risk += min(hsb_detections * 20, 40)  # Cap at 40 points
-                risk_factors.append(f"Found {hsb_detections} HSB detections")
-        
-        risk_score += (dynamic_risk / 100) * WEIGHTS['dynamic'] * 100
-    
-    # Normalize final score to 0-100 range and round to 2 decimal places
-    risk_score = round(min(max(risk_score, 0), 100), 2)
-    
-    return risk_score, risk_factors
-
-def get_risk_level(risk_score):
-    """
-    Convert numerical risk score to categorical risk level
-    """
-    if risk_score >= 75:
-        return "Critical"
-    elif risk_score >= 50:
-        return "High"
-    elif risk_score >= 25:
-        return "Medium"
-    else:
-        return "Low"
-
+from .utils import Utils
+from .analyzers.manager import AnalysisManager
 
 def register_routes(app):
     analysis_manager = AnalysisManager(app.config)
+    utils = Utils(app.config)  # Initialize Utils with app configuration
+
 
     @app.route('/')
     def index():
         return render_template('upload.html')
+
 
     @app.route('/upload', methods=['POST'])
     def upload_file():
@@ -557,9 +28,9 @@ def register_routes(app):
         if file.filename == '':
             return jsonify({'error': 'No selected file'}), 400
         
-        if file and allowed_file(file.filename, app.config):
+        if file and utils.allowed_file(file.filename):
             try:
-                file_info = save_uploaded_file(file, app.config['upload']['upload_folder'], app.config['upload']['result_folder'])
+                file_info = utils.save_uploaded_file(file)
                 return jsonify({
                     'message': 'File uploaded successfully',
                     'file_info': file_info
@@ -568,34 +39,44 @@ def register_routes(app):
                 return jsonify({'error': str(e)}), 500
         
         return jsonify({'error': 'File type not allowed'}), 400
-    
+
+
     @app.route('/validate/<pid>', methods=['POST'])
     def validate_process(pid):
         """Endpoint just for PID validation"""
-        is_valid, error_msg = validate_pid(pid)
+        is_valid, error_msg = utils.validate_pid(pid)
         if not is_valid:
             return jsonify({'error': error_msg}), 404
         return jsonify({'status': 'valid'}), 200
-    
+
+
     @app.route('/analyze/<analysis_type>/<target>', methods=['GET', 'POST'])
     def analyze_file(analysis_type, target):
         try:
             is_pid = False
             file_path = None
+            result_path = None
 
             # Check if this is a PID-based analysis
             if analysis_type == 'dynamic' and target.isdigit():
                 is_pid = True
+                pid = target
                 # Validate PID before proceeding
-                is_valid, error_msg = validate_pid(target)
+                is_valid, error_msg = utils.validate_pid(pid)
                 if not is_valid:
                     return jsonify({'error': error_msg}), 404
+                # Define result_path for PID-based dynamic analysis
+                # For example: results_folder/dynamic_<pid>
+                result_folder = os.path.join(utils.config['upload']['result_folder'], f'dynamic_{pid}')
+                os.makedirs(result_folder, exist_ok=True)
+                result_path = result_folder
             else:
                 # Look for file as before
-                file_path = find_file_by_hash(target, app.config['upload']['upload_folder'])
-                result_path = find_file_by_hash(target, app.config['upload']['result_folder'])
+                file_path = utils.find_file_by_hash(target, app.config['upload']['upload_folder'])
+                result_path = utils.find_file_by_hash(target, app.config['upload']['result_folder'])
                 if not file_path:
                     return jsonify({'error': 'File not found'}), 404
+
             if request.method == 'GET':
                 return render_template('results.html', 
                                     analysis_type=analysis_type,
@@ -606,14 +87,16 @@ def register_routes(app):
                 if is_pid:
                     return jsonify({'error': 'Cannot perform static analysis on PID'}), 400
                 results = analysis_manager.run_static_analysis(file_path)
-                # save results to result folder
-                with open(os.path.join(result_path, 'static_analysis_results.json'), 'w') as f:
+                # Save results to result folder
+                static_results_path = os.path.join(result_path, 'static_analysis_results.json')
+                with open(static_results_path, 'w') as f:
                     json.dump(results, f)
             elif analysis_type == 'dynamic':
-                target_for_analysis = target if is_pid else file_path
+                target_for_analysis = pid if is_pid else file_path
                 results = analysis_manager.run_dynamic_analysis(target_for_analysis, is_pid)
-                # save results to result folder
-                with open(os.path.join(result_path, 'dynamic_analysis_results.json'), 'w') as f:
+                # Save results to result folder
+                dynamic_results_path = os.path.join(result_path, 'dynamic_analysis_results.json')
+                with open(dynamic_results_path, 'w') as f:
                     json.dump(results, f)
             else:
                 return jsonify({'error': 'Invalid analysis type'}), 400
@@ -624,180 +107,435 @@ def register_routes(app):
             })
 
         except Exception as e:
+            # Log the exception for debugging purposes
+            app.logger.error(f"Error in analyze_file route: {e}")
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/file/<target>/<analysis_type>', methods=['GET'])
+
+    @app.route('/results/<target>/<analysis_type>', methods=['GET'])
     def get_analysis_results(target, analysis_type):
         try:
-            result_path = find_file_by_hash(target, app.config['upload']['result_folder'])
-            if not result_path:
-                return render_template('error.html', error='Results not found'), 404
-
-            # Load file info
-            file_info_path = os.path.join(result_path, 'file_info.json')
-            if not os.path.exists(file_info_path):
-                return render_template('error.html', error='File info not found'), 404
-            
-            with open(file_info_path, 'r') as f:
-                file_info = json.load(f)
+            # Check if the target is a PID (all digits) and analysis_type is 'dynamic'
+            if target.isdigit() and analysis_type == 'dynamic':
+                pid = target
+                # Define the folder path for PID-based dynamic analysis
+                result_folder = os.path.join(app.config['upload']['result_folder'], f'dynamic_{pid}')
                 
-            # Load static and dynamic results if they exist
-            static_results = None
-            dynamic_results = None
-            
-            static_path = os.path.join(result_path, 'static_analysis_results.json')
-            if os.path.exists(static_path):
-                with open(static_path, 'r') as f:
-                    static_results = json.load(f)
-                    
-            dynamic_path = os.path.join(result_path, 'dynamic_analysis_results.json')
-            if os.path.exists(dynamic_path):
+                # Check if the result folder exists
+                if not os.path.exists(result_folder):
+                    error_message = f'Process with PID {pid} does not exist'
+                    return render_template('error.html', error=error_message), 404
+
+                # Define the path to dynamic_analysis_results.json
+                dynamic_path = os.path.join(result_folder, 'dynamic_analysis_results.json')
+                
+                # Check if dynamic_analysis_results.json exists
+                if not os.path.exists(dynamic_path):
+                    error_message = f'Dynamic analysis results for PID {pid} not found.'
+                    return render_template('error.html', error=error_message), 404
+
+                # Load dynamic_analysis_results.json
                 with open(dynamic_path, 'r') as f:
                     dynamic_results = json.load(f)
-            
-            # Calculate overall risk
-            risk_score, risk_factors = calculate_file_risk(file_info, static_results, dynamic_results)
-            risk_level = get_risk_level(risk_score)
-            
-            # Add risk information to file_info
-            file_info['risk_assessment'] = {
-                'score': risk_score,
-                'level': risk_level,
-                'factors': risk_factors
-            }
 
+                # Calculate overall risk using the provided calculate_process_risk function
+                risk_score, risk_factors = utils.calculate_process_risk(dynamic_results)
+                risk_level = utils.get_risk_level(risk_score)
 
-            if analysis_type == 'info':
-                # Add helper data for the template
-                if 'pe_info' in file_info:
-                    # Calculate section entropy risk levels
-                    for section in file_info['pe_info']['sections']:
-                        section['entropy_risk'] = get_entropy_risk_level(section['entropy'])
-                    
-                    # Group suspicious imports by DLL
-                    grouped_imports = {}
-                    for imp in file_info['pe_info'].get('suspicious_imports', []):
-                        dll = imp['dll']
-                        if dll not in grouped_imports:
-                            grouped_imports[dll] = []
-                        grouped_imports[dll].append(imp)
-                    file_info['pe_info']['grouped_suspicious_imports'] = grouped_imports
+                # Add risk information to dynamic_results
+                dynamic_results['risk_assessment'] = {
+                    'score': risk_score,
+                    'level': risk_level,
+                    'factors': risk_factors
+                }
 
-                    # Format checksum values
-                    if 'checksum_info' in file_info['pe_info']:
-                        checksum = file_info['pe_info']['checksum_info']
-                        checksum['stored_checksum'] = format_hex(checksum['stored_checksum'])
-                        checksum['calculated_checksum'] = format_hex(checksum['calculated_checksum'])
+                # Extract detection counts as in original code
+                try:
+                    yara_matches = dynamic_results.get('yara', {}).get('matches', [])
+                    yara_detections = len({match.get('rule') for match in yara_matches if match.get('rule')}) if isinstance(yara_matches, list) else 0
+                except (TypeError, ValueError):
+                    yara_detections = 0
 
-                return render_template('file_info.html', 
-                                    file_info=file_info,
-                                    entropy_risk_levels={
-                                        'High': 7.2,
-                                        'Medium': 6.8,
-                                        'Low': 0
-                                    })
-                
-            elif analysis_type in ['static', 'dynamic']:
-                results_file = f'{analysis_type}_analysis_results.json'
-                results_path = os.path.join(result_path, results_file)
-                if not os.path.exists(results_path):
-                    return render_template('error.html', error=f'No {analysis_type} analysis results found'), 404
-                
-                with open(results_path, 'r') as f:
-                    analysis_results = json.load(f)
+                try:
+                    pesieve_findings = dynamic_results.get('pe_sieve', {}).get('findings', {})
+                    pesieve_detections = int(pesieve_findings.get('total_suspicious', 0) or 0)
+                except (TypeError, ValueError):
+                    pesieve_detections = 0
 
-                if analysis_type == 'static':
-                    # Calculate detection counts for static analysis with safe defaults and proper error handling
-                    try:
-                        yara_matches = analysis_results.get('yara', {}).get('matches', [])
-                        yara_detections = len({match.get('rule') for match in yara_matches}) if isinstance(yara_matches, list) else 0
-                    except (TypeError, ValueError):
-                        yara_detections = 0
+                try:
+                    moneta_findings = dynamic_results.get('moneta', {}).get('findings', {})
+                    moneta_detections = sum([
+                        int(moneta_findings.get('total_private_rwx', 0) or 0),
+                        int(moneta_findings.get('total_private_rx', 0) or 0),
+                        int(moneta_findings.get('total_modified_code', 0) or 0),
+                        int(moneta_findings.get('total_heap_executable', 0) or 0),
+                        int(moneta_findings.get('total_modified_pe_header', 0) or 0),
+                        int(moneta_findings.get('total_inconsistent_x', 0) or 0),
+                        int(moneta_findings.get('total_missing_peb', 0) or 0),
+                        int(moneta_findings.get('total_mismatching_peb', 0) or 0)
+                    ])
+                except (TypeError, ValueError):
+                    moneta_detections = 0
 
-                    checkplz_detections = 0
-                    checkplz_findings = analysis_results.get('checkplz', {}).get('findings', {})
-                    if isinstance(checkplz_findings, dict):
-                        checkplz_detections = 1 if checkplz_findings.get('initial_threat') else 0
+                try:
+                    patriot_findings = dynamic_results.get('patriot', {}).get('findings', {}).get('findings', [])
+                    patriot_detections = len(patriot_findings) if isinstance(patriot_findings, list) else 0
+                except (TypeError, ValueError):
+                    patriot_detections = 0
 
-                    # Format scan duration with proper error handling
-                    formatted_duration = "00:00.000"
-                    try:
-                        scan_duration = float(analysis_results.get('checkplz', {}).get('findings', {})
-                                           .get('scan_results', {}).get('scan_duration', 0))
-                        minutes = int(scan_duration // 60)
-                        seconds = int(scan_duration % 60)
-                        milliseconds = int((scan_duration % 1) * 1000)
-                        formatted_duration = f"{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
-                    except (TypeError, ValueError, AttributeError):
-                        pass
-
-                    return render_template('static_analysis.html',
-                                         file_info=file_info,
-                                         analysis_results=analysis_results,
-                                         yara_detections=yara_detections,
-                                         checkplz_detections=checkplz_detections,
-                                         scan_duration=formatted_duration)
-                
-                elif analysis_type == 'dynamic':
-                    # YARA: Count unique rule matches
-                    try:
-                        yara_matches = analysis_results.get('yara', {}).get('matches', [])
-                        yara_detections = len({match.get('rule') for match in yara_matches}) if yara_matches else 0
-                    except (TypeError, ValueError):
-                        yara_detections = 0
-
-                    # PE-Sieve: Get total suspicious count
-                    try:
-                        pesieve_findings = analysis_results.get('pe_sieve', {}).get('findings', {})
-                        pesieve_detections = int(pesieve_findings.get('total_suspicious', 0) or 0)
-                    except (TypeError, ValueError):
-                        pesieve_detections = 0
-
-                    # Moneta: Count memory anomalies including PEB violations
-                    try:
-                        moneta_findings = analysis_results.get('moneta', {}).get('findings', {})
-                        moneta_detections = sum([
-                            int(moneta_findings.get('total_private_rwx', 0) or 0),
-                            int(moneta_findings.get('total_private_rx', 0) or 0),
-                            int(moneta_findings.get('total_modified_code', 0) or 0),
-                            int(moneta_findings.get('total_heap_executable', 0) or 0),
-                            int(moneta_findings.get('total_modified_pe_header', 0) or 0),
-                            int(moneta_findings.get('total_inconsistent_x', 0) or 0),
-                            int(moneta_findings.get('total_missing_peb', 0) or 0),
-                            int(moneta_findings.get('total_mismatching_peb', 0) or 0)
-                        ])
-                    except (TypeError, ValueError):
-                        moneta_detections = 0
-
-                    # Patriot: Get findings directly from findings array length
-                    try:
-                        patriot_findings = analysis_results.get('patriot', {}).get('findings', {}).get('findings', [])
-                        patriot_detections = len(patriot_findings) if isinstance(patriot_findings, list) else 0
-                    except (TypeError, ValueError):
-                        patriot_detections = 0
-
-                    # HSB: Count findings from severity counts and add any findings in the detections array
-                    # HSB: Get total findings directly from detections[0]
-                    try:
-                        hsb_findings = analysis_results.get('hsb', {}).get('findings', {})
-                        if hsb_findings and hsb_findings.get('detections'):
-                            hsb_detections = len(hsb_findings['detections'][0].get('findings', []))
-                        else:
-                            hsb_detections = 0
-                    except (TypeError, ValueError, IndexError):
+                try:
+                    hsb_findings = dynamic_results.get('hsb', {}).get('findings', {})
+                    if hsb_findings and hsb_findings.get('detections'):
+                        hsb_detections = len(hsb_findings['detections'][0].get('findings', []))
+                    else:
                         hsb_detections = 0
+                except (TypeError, ValueError, IndexError):
+                    hsb_detections = 0
 
-                    return render_template('dynamic_analysis.html',
-                                         file_info=file_info,
-                                         analysis_results=analysis_results,
-                                         yara_detections=yara_detections,
-                                         pesieve_detections=pesieve_detections,
-                                         moneta_detections=moneta_detections,
-                                         patriot_detections=patriot_detections,
-                                         hsb_detections=hsb_detections)
+                # Render dynamic_results.html for PID-based target
+                return render_template(
+                    'dynamic_results.html',
+                    file_info=None,  # No file_info for PID-based targets
+                    analysis_results=dynamic_results,
+                    yara_detections=yara_detections,
+                    pesieve_detections=pesieve_detections,
+                    moneta_detections=moneta_detections,
+                    patriot_detections=patriot_detections,
+                    hsb_detections=hsb_detections,
+                    risk_level=risk_level,
+                    risk_score=risk_score,
+                    risk_factors=risk_factors
+                )
+
+            else:
+                # Treat target as a hash for file-based analysis
+                result_path = utils.find_file_by_hash(target, app.config['upload']['result_folder'])
+                if not result_path:
+                    return render_template('error.html', error='Results not found'), 404
+
+                # Load file_info.json
+                file_info_path = os.path.join(result_path, 'file_info.json')
+                if not os.path.exists(file_info_path):
+                    return render_template('error.html', error='File info not found'), 404
+
+                with open(file_info_path, 'r') as f:
+                    file_info = json.load(f)
+
+                # Load static and dynamic results if they exist
+                static_results = None
+                dynamic_results = None
+
+                static_path = os.path.join(result_path, 'static_analysis_results.json')
+                if os.path.exists(static_path):
+                    with open(static_path, 'r') as f:
+                        static_results = json.load(f)
+
+                dynamic_path = os.path.join(result_path, 'dynamic_analysis_results.json')
+                if os.path.exists(dynamic_path):
+                    with open(dynamic_path, 'r') as f:
+                        dynamic_results = json.load(f)
+
+                # Calculate overall risk
+                risk_score, risk_factors = utils.calculate_file_risk(file_info, static_results, dynamic_results)
+                risk_level = utils.get_risk_level(risk_score)
+
+                # Add risk information to file_info
+                file_info['risk_assessment'] = {
+                    'score': risk_score,
+                    'level': risk_level,
+                    'factors': risk_factors
+                }
+
+                if analysis_type == 'info':
+                    # Add helper data for the template
+                    if 'pe_info' in file_info:
+                        # Calculate section entropy risk levels
+                        for section in file_info['pe_info']['sections']:
+                            section['entropy_risk'] = utils.get_entropy_risk_level(section['entropy'])
+
+                        # Group suspicious imports by DLL
+                        grouped_imports = {}
+                        for imp in file_info['pe_info'].get('suspicious_imports', []):
+                            dll = imp['dll']
+                            if dll not in grouped_imports:
+                                grouped_imports[dll] = []
+                            grouped_imports[dll].append(imp)
+                        file_info['pe_info']['grouped_suspicious_imports'] = grouped_imports
+
+                        # Format checksum values
+                        if 'checksum_info' in file_info['pe_info']:
+                            checksum = file_info['pe_info']['checksum_info']
+                            checksum['stored_checksum'] = utils.format_hex(checksum['stored_checksum'])
+                            checksum['calculated_checksum'] = utils.format_hex(checksum['calculated_checksum'])
+
+                    return render_template(
+                        'file_info.html',
+                        file_info=file_info,
+                        entropy_risk_levels={
+                            'High': 7.2,
+                            'Medium': 6.8,
+                            'Low': 0
+                        }
+                    )
+
+                elif analysis_type in ['static', 'dynamic']:
+                    # Process 'static' or 'dynamic' analysis types
+                    results_file = f'{analysis_type}_analysis_results.json'
+                    results_path = os.path.join(result_path, results_file)
+                    if not os.path.exists(results_path):
+                        return render_template('error.html', error=f'No {analysis_type} analysis results found'), 404
+
+                    with open(results_path, 'r') as f:
+                        analysis_results = json.load(f)
+
+                    if analysis_type == 'static':
+                        # Extract static analysis detections
+                        try:
+                            yara_matches = analysis_results.get('yara', {}).get('matches', [])
+                            yara_detections = len({match.get('rule') for match in yara_matches}) if isinstance(yara_matches, list) else 0
+                        except (TypeError, ValueError):
+                            yara_detections = 0
+
+                        checkplz_detections = 0
+                        checkplz_findings = analysis_results.get('checkplz', {}).get('findings', {})
+                        if isinstance(checkplz_findings, dict):
+                            checkplz_detections = 1 if checkplz_findings.get('initial_threat') else 0
+
+                        # Format scan duration
+                        formatted_duration = "00:00.000"
+                        try:
+                            scan_duration = float(
+                                analysis_results.get('checkplz', {}).get('findings', {})
+                                .get('scan_results', {}).get('scan_duration', 0)
+                            )
+                            minutes = int(scan_duration // 60)
+                            seconds = int(scan_duration % 60)
+                            milliseconds = int((scan_duration % 1) * 1000)
+                            formatted_duration = f"{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
+                        except (TypeError, ValueError, AttributeError):
+                            pass
+
+                        return render_template(
+                            'static_results.html',
+                            file_info=file_info,
+                            analysis_results=analysis_results,
+                            yara_detections=yara_detections,
+                            checkplz_detections=checkplz_detections,
+                            scan_duration=formatted_duration
+                        )
+
+                    elif analysis_type == 'dynamic':
+                        # Extract dynamic analysis detections
+                        try:
+                            yara_matches = analysis_results.get('yara', {}).get('matches', [])
+                            yara_detections = len({match.get('rule') for match in yara_matches}) if yara_matches else 0
+                        except (TypeError, ValueError):
+                            yara_detections = 0
+
+                        try:
+                            pesieve_findings = analysis_results.get('pe_sieve', {}).get('findings', {})
+                            pesieve_detections = int(pesieve_findings.get('total_suspicious', 0) or 0)
+                        except (TypeError, ValueError):
+                            pesieve_detections = 0
+
+                        try:
+                            moneta_findings = analysis_results.get('moneta', {}).get('findings', {})
+                            moneta_detections = sum([
+                                int(moneta_findings.get('total_private_rwx', 0) or 0),
+                                int(moneta_findings.get('total_private_rx', 0) or 0),
+                                int(moneta_findings.get('total_modified_code', 0) or 0),
+                                int(moneta_findings.get('total_heap_executable', 0) or 0),
+                                int(moneta_findings.get('total_modified_pe_header', 0) or 0),
+                                int(moneta_findings.get('total_inconsistent_x', 0) or 0),
+                                int(moneta_findings.get('total_missing_peb', 0) or 0),
+                                int(moneta_findings.get('total_mismatching_peb', 0) or 0)
+                            ])
+                        except (TypeError, ValueError):
+                            moneta_detections = 0
+
+                        try:
+                            patriot_findings = analysis_results.get('patriot', {}).get('findings', {}).get('findings', [])
+                            patriot_detections = len(patriot_findings) if isinstance(patriot_findings, list) else 0
+                        except (TypeError, ValueError):
+                            patriot_detections = 0
+
+                        try:
+                            hsb_findings = analysis_results.get('hsb', {}).get('findings', {})
+                            if hsb_findings and hsb_findings.get('detections'):
+                                hsb_detections = len(hsb_findings['detections'][0].get('findings', []))
+                            else:
+                                hsb_detections = 0
+                        except (TypeError, ValueError, IndexError):
+                            hsb_detections = 0
+
+                        return render_template(
+                            'dynamic_results.html',
+                            file_info=file_info,
+                            analysis_results=analysis_results,
+                            yara_detections=yara_detections,
+                            pesieve_detections=pesieve_detections,
+                            moneta_detections=moneta_detections,
+                            patriot_detections=patriot_detections,
+                            hsb_detections=hsb_detections
+                        )
+
+                else:
+                    return render_template('error.html', error='Invalid analysis type.'), 400
 
         except Exception as e:
+            # Log the exception for debugging purposes
+            app.logger.error(f"Error in get_analysis_results route: {e}")
             return render_template('error.html', error=str(e)), 500
+
+
+    @app.route('/summary', methods=['GET'])
+    def summary_page():
+        """Route for the summary page"""
+        return render_template('summary.html')
+
+
+    @app.route('/files', methods=['GET'])
+    def get_files_summary():
+        try:
+            results_dir = app.config['upload']['result_folder']
+            file_based_summary = {}
+            pid_based_summary = {}
+
+            all_items = os.listdir(results_dir)
+
+            # Iterate through all items in the results folder
+            for item in all_items:
+                item_path = os.path.join(results_dir, item)
+                
+                if not os.path.isdir(item_path):
+                    continue
+
+                # Handle PID-based analysis (dynamic_pid directories)
+                if item.startswith('dynamic_'):
+                    pid = item.replace('dynamic_', '')
+                    
+                    dynamic_results_path = os.path.join(item_path, 'dynamic_analysis_results.json')
+                    
+                    if os.path.exists(dynamic_results_path):
+                        with open(dynamic_results_path, 'r') as f:
+                            dynamic_results = json.load(f)
+                        
+                        # Extract scanner-specific results
+                        yara_matches = dynamic_results.get('yara', {}).get('matches', [])
+                        pe_sieve_findings = dynamic_results.get('pe_sieve', {}).get('findings', {})
+                        moneta_findings = dynamic_results.get('moneta', {}).get('findings', {})
+                        hsb_detections = dynamic_results.get('hsb', {}).get('findings', {}).get('detections', [])
+
+                        # Get process details from Moneta if available
+                        process_info = moneta_findings.get('process_info', {})
+
+                        # Calculate risk score for PID-based analysis
+                        risk_score, risk_factors = utils.calculate_process_risk(dynamic_results)
+                        risk_level = utils.get_risk_level(risk_score)
+
+                        pid_based_summary[pid] = {
+                            'pid': pid,
+                            'process_name': process_info.get('name', 'unknown'),
+                            'process_path': process_info.get('path', 'unknown'),
+                            'architecture': process_info.get('arch', 'unknown'),
+                            'analysis_time': dynamic_results.get('analysis_time', 'unknown'),
+                            'result_dir_full_path': os.path.abspath(item_path),
+                            'risk_assessment': {
+                                'score': risk_score,
+                                'level': risk_level,
+                                'factors': risk_factors
+                            },
+                            'analysis_summary': {
+                                'yara': {
+                                    'match_count': len(yara_matches),
+                                    'critical_rules': sum(1 for match in yara_matches 
+                                                       if match.get('metadata', {}).get('severity', 0) >= 90)
+                                },
+                                'pe_sieve': {
+                                    'total_suspicious': pe_sieve_findings.get('total_suspicious', 0),
+                                    'implanted': pe_sieve_findings.get('implanted', 0),
+                                    'hooked': pe_sieve_findings.get('hooked', 0)
+                                },
+                                'moneta': {
+                                    'abnormal_exec': moneta_findings.get('total_abnormal_private_exec', 0),
+                                    'unsigned_modules': moneta_findings.get('total_unsigned_modules', 0),
+                                    'rwx_regions': moneta_findings.get('total_private_rwx', 0)
+                                },
+                                'hsb': {
+                                    'total_findings': sum(len(det.get('findings', [])) 
+                                                        for det in hsb_detections if det.get('pid') == int(pid)),
+                                    'max_severity': max((det.get('max_severity', 0) 
+                                                       for det in hsb_detections if det.get('pid') == int(pid)), 
+                                                      default=0)
+                                }
+                            }
+                        }
+
+                    continue
+                # Handle file-based analysis (existing logic)
+                file_info_path = os.path.join(item_path, 'file_info.json')
+                if not os.path.exists(file_info_path):
+                    continue
+                    
+                with open(file_info_path, 'r') as f:
+                    file_info = json.load(f)
+
+                # Load static analysis results if they exist
+                static_results = None
+                static_path = os.path.join(item_path, 'static_analysis_results.json')
+                if os.path.exists(static_path):
+                    with open(static_path, 'r') as f:
+                        static_results = json.load(f)
+
+                # Load dynamic analysis results if they exist
+                dynamic_results = None
+                dynamic_path = os.path.join(item_path, 'dynamic_analysis_results.json')
+                if os.path.exists(dynamic_path):
+                    with open(dynamic_path, 'r') as f:
+                        dynamic_results = json.load(f)
+
+                # Calculate risk score using our comprehensive function
+                risk_score, risk_factors = utils.calculate_file_risk(file_info, static_results, dynamic_results)
+                risk_level = utils.get_risk_level(risk_score)
+
+                # Create summary for this file
+                file_based_summary[item] = {
+                    'md5': file_info.get('md5', 'unknown'),
+                    'sha256': file_info.get('sha256', 'unknown'),
+                    'filename': file_info.get('original_name', 'unknown'),
+                    'file_size': file_info.get('size', 0),
+                    'upload_time': file_info.get('upload_time', 'unknown'),
+                    'result_dir_full_path': os.path.abspath(item_path),
+                    'entropy_value': file_info.get('entropy_analysis', {}).get('value', 0),
+                    'detection_risk': file_info.get('entropy_analysis', {}).get('detection_risk', 'Unknown'),
+                    'has_static_analysis': os.path.exists(static_path),
+                    'has_dynamic_analysis': os.path.exists(dynamic_path),
+                    'risk_assessment': {
+                        'score': risk_score,
+                        'level': risk_level,
+                        'factors': risk_factors
+                    }
+                }
+
+            return jsonify({
+                'status': 'success',
+                'file_based': {
+                    'count': len(file_based_summary),
+                    'files': file_based_summary
+                },
+                'pid_based': {
+                    'count': len(pid_based_summary),
+                    'processes': pid_based_summary
+                }
+            })
+
+        except Exception as e:
+            print(f"Error in get_files_summary: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'error': str(e)
+            }), 500
+
 
     @app.route('/cleanup', methods=['POST'])
     def cleanup():
@@ -825,7 +563,7 @@ def register_routes(app):
                 except Exception as e:
                     results['errors'].append(f"Error accessing uploads folder: {str(e)}")
 
-            # delete all folders in result folder
+            # Delete all folders in result folder
             result_folder = app.config['upload']['result_folder']
             if os.path.exists(result_folder):
                 try:
@@ -873,6 +611,7 @@ def register_routes(app):
                 'error': str(e)
             }), 500
 
+
     @app.route('/health', methods=['GET'])
     def health_check():
         try:
@@ -916,7 +655,7 @@ def register_routes(app):
                     rules_path = tool_config.get('rules_path')
                     if rules_path and not os.path.isfile(rules_path):
                         issues.append(f"{tool_name}: rules not found at {rules_path}")
-            
+
             # Check static analysis tools
             static_config = analysis_config.get('static', {})
             for tool in ['yara', 'threatcheck']:
@@ -951,85 +690,13 @@ def register_routes(app):
                 'issues': [str(e)]
             }), 500
 
-    @app.route('/summary', methods=['GET'])
-    def summary_page():
-        """Route for the summary page"""
-        return render_template('summary.html')
-
-    @app.route('/files', methods=['GET'])
-    def get_files_summary():
-        try:
-            results_dir = app.config['upload']['result_folder']
-            summary = {}
-            # Iterate through all subdirectories in the results folder
-            for md5_dir in os.listdir(results_dir):
-                dir_path = os.path.join(results_dir, md5_dir)
-                if not os.path.isdir(dir_path):
-                    continue
-                    
-                # Read file_info.json
-                file_info_path = os.path.join(dir_path, 'file_info.json')
-                if not os.path.exists(file_info_path):
-                    continue
-                
-                with open(file_info_path, 'r') as f:
-                    file_info = json.load(f)
-
-                # Load static analysis results if they exist
-                static_results = None
-                static_path = os.path.join(dir_path, 'static_analysis_results.json')
-                if os.path.exists(static_path):
-                    with open(static_path, 'r') as f:
-                        static_results = json.load(f)
-
-                # Load dynamic analysis results if they exist
-                dynamic_results = None
-                dynamic_path = os.path.join(dir_path, 'dynamic_analysis_results.json')
-                if os.path.exists(dynamic_path):
-                    with open(dynamic_path, 'r') as f:
-                        dynamic_results = json.load(f)
-
-                # Calculate risk score using our comprehensive function
-                risk_score, risk_factors = calculate_file_risk(file_info, static_results, dynamic_results)
-                risk_level = get_risk_level(risk_score)
-
-                # Create summary for this file
-                summary[md5_dir] = {
-                    'md5': file_info.get('md5', 'unknown'),
-                    'sha256': file_info.get('sha256', 'unknown'),
-                    'filename': file_info.get('original_name', 'unknown'),
-                    'file_size': file_info.get('size', 0),
-                    'upload_time': file_info.get('upload_time', 'unknown'),
-                    'result_dir_full_path': os.path.abspath(dir_path),
-                    'entropy_value': file_info.get('entropy_analysis', {}).get('value', 0),
-                    'detection_risk': file_info.get('entropy_analysis', {}).get('detection_risk', 'Unknown'),
-                    'has_static_analysis': os.path.exists(static_path),
-                    'has_dynamic_analysis': os.path.exists(dynamic_path),
-                    # Add the new risk assessment
-                    'risk_assessment': {
-                        'score': risk_score,
-                        'level': risk_level,
-                        'factors': risk_factors
-                    }
-                }
-
-            return jsonify({
-                'status': 'success',
-                'count': len(summary),
-                'files': summary
-            })
-        except Exception as e:
-            return jsonify({
-                'status': 'error',
-                'error': str(e)
-            }), 500
 
     @app.route('/file/<target>', methods=['DELETE'])
     def delete_file(target):
         try:
             # Find file in uploads folder
-            upload_path = find_file_by_hash(target, app.config['upload']['upload_folder'])
-            result_path = find_file_by_hash(target, app.config['upload']['result_folder'])
+            upload_path = utils.find_file_by_hash(target, app.config['upload']['upload_folder'])
+            result_path = utils.find_file_by_hash(target, app.config['upload']['result_folder'])
             analysis_path = os.path.join('.', 'Scanners', 'PE-Sieve', 'Analysis')
             
             deleted = {
@@ -1080,7 +747,7 @@ def register_routes(app):
                 'message': 'File deleted successfully',
                 'details': deleted
             })
-
+        
         except Exception as e:
             return jsonify({
                 'status': 'error',

@@ -1,7 +1,7 @@
 // app/static/js/summery.js
 
 
-// DOM Elements
+// Add new DOM elements while keeping existing ones
 const elements = {
     fileList: document.getElementById('fileList'),
     fileRowTemplate: document.getElementById('fileRowTemplate'),
@@ -13,30 +13,52 @@ const elements = {
     totalFiles: document.getElementById('totalFiles'),
     storageUsed: document.getElementById('storageUsed'),
     averageRisk: document.getElementById('averageRisk'),
-    averageEntropy: document.getElementById('averageEntropy')
+    averageEntropy: document.getElementById('averageEntropy'),
+    processList: document.getElementById('processList'),
+    processRowTemplate: document.getElementById('processRowTemplate'),
+    processEmptyState: document.getElementById('processEmptyState'),
+    totalProcesses: document.getElementById('totalProcesses'),
+    highRiskProcesses: document.getElementById('highRiskProcesses'),
+    processAverageRisk: document.getElementById('processAverageRisk')
 };
 
-// State
+// Add new state for processes while keeping existing files state
 let files = [];
+let processes = [];
 
-// Fetch and render files
+// Modify loadFiles to handle both types while keeping existing functionality
 async function loadFiles() {
     try {
         const response = await fetch('/files');
         const data = await response.json();
         
         if (data.status === 'success') {
-            files = Object.entries(data.files).map(([md5, file]) => ({
-                md5,
-                ...file
-            }));
-            updateStats();
-            renderFiles();
+            // Handle file-based analyses
+            if (data.file_based && data.file_based.files) {
+                files = Object.entries(data.file_based.files).map(([md5, file]) => ({
+                    md5,
+                    ...file
+                }));
+                updateStats();
+                renderFiles();
+            }
+            
+            // Handle process-based analyses
+            if (data.pid_based && data.pid_based.processes) {
+                processes = Object.entries(data.pid_based.processes).map(([pid, process]) => ({
+                    pid,
+                    ...process
+                }));
+                console.log('Loaded processes:', processes); // Debug log
+                updateProcessStats();
+                renderProcesses();
+            }
         }
     } catch (error) {
-        console.error('Error loading files:', error);
+        console.error('Error loading data:', error);
     }
 }
+
 
 // Update statistics
 function updateStats() {
@@ -79,7 +101,128 @@ function updateStats() {
         elements.averageEntropy.textContent = 'Risk Score: -';
     }
 }
-// Render file list
+
+
+function updateProcessStats() {
+    if (!elements.totalProcesses) return;
+    
+    elements.totalProcesses.textContent = processes.length;
+    
+    // Calculate high risk processes
+    const highRiskCount = processes.filter(p => 
+        p.risk_assessment && p.risk_assessment.score >= 75
+    ).length;
+    
+    if (elements.highRiskProcesses) {
+        elements.highRiskProcesses.textContent = highRiskCount;
+    }
+    
+    // Calculate and display average risk
+    const processesWithRisk = processes.filter(p => 
+        p.risk_assessment && p.risk_assessment.score !== undefined
+    );
+    
+    if (elements.processAverageRisk && processesWithRisk.length > 0) {
+        const avgRiskScore = processesWithRisk.reduce((sum, process) => 
+            sum + process.risk_assessment.score, 0) / processesWithRisk.length;
+        
+        let riskText, riskClass;
+        if (avgRiskScore >= 75) {
+            riskText = 'Critical';
+            riskClass = 'bg-red-900 text-white';
+        } else if (avgRiskScore >= 50) {
+            riskText = 'High';
+            riskClass = 'bg-red-500 text-white';
+        } else if (avgRiskScore >= 25) {
+            riskText = 'Medium';
+            riskClass = 'bg-yellow-500 text-black';
+        } else {
+            riskText = 'Low';
+            riskClass = 'bg-green-500 text-white';
+        }
+        
+        elements.processAverageRisk.textContent = `${riskText} (${avgRiskScore.toFixed(1)}%)`;
+        elements.processAverageRisk.className = 'px-2 py-1 text-sm rounded-lg inline-flex items-center justify-center font-medium ' + riskClass;
+    }
+}
+
+function renderProcesses() {
+    if (!elements.processList || !elements.processEmptyState) return;
+
+    elements.processList.innerHTML = '';
+    elements.processEmptyState.classList.toggle('hidden', processes.length > 0);
+    
+    if (processes.length === 0) {
+        console.log('No processes to render'); // Debug log
+        return;
+    }
+
+    processes.forEach(process => {
+        const row = elements.processRowTemplate.content.cloneNode(true);
+        
+        // Process name and path
+        const nameEl = row.querySelector('[data-field="processName"]');
+        const pathEl = row.querySelector('[data-field="processPath"]');
+        if (nameEl) nameEl.textContent = process.process_name || 'Unknown';
+        if (pathEl) pathEl.textContent = process.process_path || '';
+        
+        // PID
+        const pidEl = row.querySelector('[data-field="pid"]');
+        if (pidEl) pidEl.textContent = process.pid;
+        
+        // Risk Assessment
+        const riskEl = row.querySelector('[data-field="processRisk"]');
+        if (riskEl && process.risk_assessment) {
+            const { level, score } = process.risk_assessment;
+            riskEl.textContent = `${level} (${score}%)`;
+            riskEl.className = 'px-3 py-1 text-xs rounded-lg inline-flex items-center justify-center font-medium';
+            
+            if (score >= 75) {
+                riskEl.className += ' bg-red-900 text-white';
+            } else if (score >= 50) {
+                riskEl.className += ' bg-red-500 text-white';
+            } else if (score >= 25) {
+                riskEl.className += ' bg-yellow-500 text-black';
+            } else {
+                riskEl.className += ' bg-green-500 text-white';
+            }
+        }
+        
+        // Analysis time
+        const timeEl = row.querySelector('[data-field="processArch"]');
+        if (timeEl) timeEl.textContent = process.architecture || 'Unknown';
+        
+        // Action buttons
+        const viewButton = row.querySelector('[data-action="view"]');
+        const deleteButton = row.querySelector('[data-action="delete"]');
+        
+        if (viewButton) viewButton.onclick = () => viewProcess(process.pid);
+        if (deleteButton) deleteButton.onclick = () => showProcessDeleteWarning(process.pid);
+        
+        elements.processList.appendChild(row);
+    });
+}
+
+function viewProcess(pid) {
+    window.location.href = `/results/${pid}/dynamic`;
+}
+
+async function deleteProcess(pid) {
+    try {
+        const response = await fetch(`/process/${pid}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            processes = processes.filter(process => process.pid !== pid);
+            updateProcessStats();
+            renderProcesses();
+        }
+    } catch (error) {
+        console.error('Error deleting process:', error);
+    }
+}
+
 // Render file list - Update the risk display part
 function renderFiles() {
     const filteredFiles = filterFiles(files);
@@ -152,7 +295,6 @@ function renderFiles() {
 }
 
 // Filter files based on search and type
-// Update filter function to use new risk levels
 function filterFiles(files) {
     const searchTerm = elements.searchFiles.value.toLowerCase();
     const fileType = elements.filterType.value;
@@ -209,12 +351,10 @@ function getAnalysisStatus(file) {
     };
 }
 
-// app/static/js/summery.js
-
 
 // View file details
 function viewFile(md5) {
-    window.location.href = `/file/${md5}/info`;
+    window.location.href = `/results/${md5}/info`;
 }
 
 // Show/hide file delete warning
@@ -292,12 +432,33 @@ async function cleanupFiles() {
     }
 }
 
+// Function to toggle the Process Analysis Results card
+function toggleProcessAnalysis() {
+    const processCard = document.getElementById('processAnalysisCard');
+    const toggleButton = event.currentTarget;
+
+    if (processCard.classList.contains('hidden')) {
+        processCard.classList.remove('hidden');
+        toggleButton.querySelector('span').textContent = 'Hide Process Analysis';
+    } else {
+        processCard.classList.add('hidden');
+        toggleButton.querySelector('span').textContent = 'Show Process Analysis';
+    }
+}
+
+
 // Make functions available globally
 window.showSummaryCleanupWarning = showSummaryCleanupWarning;
 window.hideSummaryCleanupWarning = hideSummaryCleanupWarning;
 window.cleanupFiles = cleanupFiles;
 window.showFileDeleteWarning = showFileDeleteWarning;
 window.hideFileDeleteWarning = hideFileDeleteWarning;
+// Make new functions available globally
+window.toggleProcessAnalysis = toggleProcessAnalysis;
+
+// Make new functions available globally
+window.viewProcess = viewProcess;
+window.deleteProcess = deleteProcess;
 
 // Utility: Format file size
 function formatFileSize(bytes) {
