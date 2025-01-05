@@ -76,16 +76,16 @@ Features include:
 
 ### File Operations
 ```http
-POST   /upload                          	# Upload files for analysis
-GET    /analyze/static/<hash>           	# Static file analysis
-POST   /analyze/dynamic/<hash>          	# Dynamic file analysis
-POST   /analyze/dynamic/<pid>           	# Process analysis
-GET    /files                           	# Get list of processed files
+POST   /upload                          	  # Upload files for analysis
+GET    /analyze/static/<hash>           	  # Static file analysis
+POST   /analyze/dynamic/<hash>          	  # Dynamic file analysis
+POST   /analyze/dynamic/<pid>           	  # Process analysis
+GET    /files                           	  # Get list of processed files
 GET    /resoults/<hash>/info                # Get file info
 GET    /resoults/<hash>/static              # Get results for file static analysis
 GET    /resoults/<hash>/dynamic             # Get results for file dynamic analysis
 GET    /resoults/<pid>/dynamic              # Get results for pid analysis
-DELETE /file/<hash>                     	# Delete single analysis
+DELETE /file/<hash>                     	  # Delete single analysis
 ```
 
 ### System Management
