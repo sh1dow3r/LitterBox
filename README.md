@@ -72,25 +72,34 @@ Features include:
 - [Patriot](https://github.com/BlackSnufkin/patriot) - Runtime monitoring
 - [Hunt-Sleeping-Beacons](https://github.com/thefLink/Hunt-Sleeping-Beacons) - Beacon behavior analysis
 
-## API Reference
+## Web Endpoint Reference
 
-### File Operations
+
+#### File Management
 ```http
-POST   /upload                        # Upload files for analysis
-GET    /analyze/static/<hash>         # Static file analysis
-POST   /analyze/dynamic/<hash>        # Dynamic file analysis
-POST   /analyze/dynamic/<pid>         # Process analysis
-GET    /files                         # Get list of processed files
-GET    /api/results/<hash>/info       # Get Json file info
-GET    /api/results/<hash>/static     # Get Json results for file static analysis
-GET    /api/results/<hash>/dynamic    # Get Json results for file dynamic analysis
-GET    /api/results/<pid>/dynamic     # Get Json results for pid analysis
-GET    /results/<hash>/info           # Get file info
-GET    /results/<hash>/static         # Get results for file static analysis
-GET    /results/<hash>/dynamic        # Get results for file dynamic analysis
-GET    /results/<pid>/dynamic         # Get results for pid analysis
+POST   /upload                    # Upload files for analysis
+GET    /files                     # Get list of processed files
 ```
-
+#### Analysis Operations 
+```http
+GET    /analyze/static/<hash>     # Static file analysis
+POST   /analyze/dynamic/<hash>    # Dynamic file analysis  
+POST   /analyze/dynamic/<pid>     # Process analysis
+```
+#### API Results (JSON)
+```http
+GET    /api/results/<hash>/info   # Get Json file info
+GET    /api/results/<hash>/static # Get Json results for file static analysis
+GET    /api/results/<hash>/dynamic # Get Json results for file dynamic analysis
+GET    /api/results/<pid>/dynamic # Get Json results for pid analysis
+```
+#### Web Results
+```http
+GET    /results/<hash>/info      # Get file info
+GET    /results/<hash>/static    # Get results for file static analysis
+GET    /results/<hash>/dynamic   # Get results for file dynamic analysis
+GET    /results/<pid>/dynamic    # Get results for pid analysis
+```
 ### System Management
 ```http
 GET  /health                 # System health and tool status check
