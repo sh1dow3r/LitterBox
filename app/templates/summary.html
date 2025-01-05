@@ -1,3 +1,5 @@
+<!-- app/templates/summery.html -->
+
 {% extends "base.html" %}
 
 {% block page_title %}File Management{% endblock %}
@@ -83,16 +85,19 @@
                     </select>
                     <select id="filterRisk" class="bg-gray-900/30 border border-gray-800 rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
                         <option value="all">All Risks</option>
+                        <option value="critical">Critical Risk</option>
                         <option value="high">High Risk</option>
                         <option value="medium">Medium Risk</option>
                         <option value="low">Low Risk</option>
                     </select>
-                    <select id="sortBy" 
-                            class="bg-gray-900/30 border border-gray-800 rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
+
+                    <!-- Add risk sorting option -->
+                    <select id="sortBy" class="bg-gray-900/30 border border-gray-800 rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50">
                         <option value="newest">Newest First</option>
                         <option value="oldest">Oldest First</option>
                         <option value="name">Name</option>
                         <option value="size">Size</option>
+                        <option value="risk">Risk Score</option>
                     </select>
                 </div>
             </div>

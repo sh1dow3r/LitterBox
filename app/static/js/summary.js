@@ -43,39 +43,41 @@ function updateStats() {
     const totalBytes = files.reduce((sum, file) => sum + (file.file_size || 0), 0);
     elements.storageUsed.textContent = formatFileSize(totalBytes);
     
-    // Calculate average entropy and determine risk
-    const filesWithEntropy = files.filter(f => f.entropy_value);
+    // Calculate average risk score
+    const filesWithRisk = files.filter(f => f.risk_assessment && f.risk_assessment.score !== undefined);
     
-    if (filesWithEntropy.length > 0) {
-        const avgEntropy = filesWithEntropy.reduce((sum, file) => sum + file.entropy_value, 0) / filesWithEntropy.length;
+    if (filesWithRisk.length > 0) {
+        const avgRiskScore = filesWithRisk.reduce((sum, file) => 
+            sum + file.risk_assessment.score, 0) / filesWithRisk.length;
         
-        // Determine risk level based on entropy value
-        let riskText;
-        let riskClass;
+        // Determine risk level based on risk score
+        let riskText, riskClass;
         
-        if (avgEntropy >= 7.2) {
+        if (avgRiskScore >= 75) {
+            riskText = 'Critical';
+            riskClass = 'bg-red-900 text-white';
+        } else if (avgRiskScore >= 50) {
             riskText = 'High';
             riskClass = 'bg-red-500 text-white';
-        } else if (avgEntropy >= 6.8) {
+        } else if (avgRiskScore >= 25) {
             riskText = 'Medium';
             riskClass = 'bg-yellow-500 text-black';
         } else {
             riskText = 'Low';
             riskClass = 'bg-green-500 text-white';
         }
-        // console.log(avgEntropy);
         
-        elements.averageRisk.textContent = riskText;
+        elements.averageRisk.textContent = `${riskText} Risk`;
         elements.averageRisk.className = 'px-2 py-1 text-sm rounded-lg inline-flex items-center justify-center font-medium ' + riskClass;
-        elements.averageEntropy.textContent = `Entropy: ${avgEntropy.toFixed(3)}`;
+        elements.averageEntropy.textContent = `Risk Score: ${avgRiskScore.toFixed(1)}%`;
     } else {
         elements.averageRisk.textContent = '-';
         elements.averageRisk.className = 'px-2 py-1 text-sm rounded-lg inline-flex items-center justify-center font-medium bg-gray-500 text-white';
-        elements.averageEntropy.textContent = 'Entropy: -';
+        elements.averageEntropy.textContent = 'Risk Score: -';
     }
 }
-
 // Render file list
+// Render file list - Update the risk display part
 function renderFiles() {
     const filteredFiles = filterFiles(files);
     const sortedFiles = sortFiles(filteredFiles);
@@ -90,34 +92,33 @@ function renderFiles() {
         row.querySelector('[data-field="fileName"]').textContent = file.filename;
         row.querySelector('[data-field="fileHash"]').textContent = file.md5;
         
-        // Entropy and Risk
-        const entropyEl = row.querySelector('[data-field="fileEntropy"]');
+        // Risk Assessment
         const riskEl = row.querySelector('[data-field="fileRisk"]');
+        const entropyEl = row.querySelector('[data-field="fileEntropy"]');
         
-        if (file.entropy_value) {
-            entropyEl.textContent = `Entropy: ${file.entropy_value.toFixed(2)}`;
-        }
-        
-        if (file.detection_risk) {
-            riskEl.textContent = file.detection_risk;
+        if (file.risk_assessment) {
+            const { level, score, factors } = file.risk_assessment;
+            riskEl.textContent = `${level} (${score}%)`;
             riskEl.className = 'px-3 py-1 text-xs rounded-lg inline-flex items-center justify-center font-medium';
-            switch(file.detection_risk.toLowerCase()) {
-                case 'high':
-                    // riskEl.className += ' bg-red-500/10 text-red-400 border border-red-900/20';
-                    riskEl.className += ' bg-red-500 text-white';
-                    break;
-                case 'medium':
-                    // riskEl.className += ' bg-yellow-500/10 text-yellow-400 border border-yellow-900/20';
-                    riskEl.className += ' bg-yellow-500 text-black';
-                    break;
-                case 'low':
-                    // riskEl.className += ' bg-green-500/10 text-green-400 border border-green-900/20';
-                    riskEl.className += ' bg-green-500 text-white';
-                    break;
-                default:
-                    // riskEl.className += ' bg-gray-500/10 text-gray-400 border border-gray-900/20'; 
-                    riskEl.className += ' bg-gray-500 text-white';
+            
+            if (score >= 75) {
+                riskEl.className += ' bg-red-900 text-white';
+            } else if (score >= 50) {
+                riskEl.className += ' bg-red-500 text-white';
+            } else if (score >= 25) {
+                riskEl.className += ' bg-yellow-500 text-black';
+            } else {
+                riskEl.className += ' bg-green-500 text-white';
             }
+            
+            // Show first risk factor if available
+            if (factors && factors.length > 0) {
+                entropyEl.textContent = factors[0];
+            }
+        } else {
+            riskEl.textContent = 'Unknown';
+            riskEl.className += ' bg-gray-500 text-white px-3 py-1 text-xs rounded-lg inline-flex items-center justify-center font-medium';
+            entropyEl.textContent = '';
         }
         // File type
         // const typeCell = row.querySelector('#fileType');
@@ -148,17 +149,18 @@ function renderFiles() {
 }
 
 // Filter files based on search and type
+// Update filter function to use new risk levels
 function filterFiles(files) {
     const searchTerm = elements.searchFiles.value.toLowerCase();
     const fileType = elements.filterType.value;
-    const riskLevel = elements.filterRisk.value;
+    const riskLevel = elements.filterRisk.value.toLowerCase();
     
     return files.filter(file => {
         const matchesSearch = file.filename.toLowerCase().includes(searchTerm) ||
                             file.md5.toLowerCase().includes(searchTerm);
         const matchesType = fileType === 'all' || file.filename.toLowerCase().endsWith(fileType);
         const matchesRisk = riskLevel === 'all' || 
-                           (file.detection_risk && file.detection_risk.toLowerCase() === riskLevel);
+                           (file.risk_assessment && file.risk_assessment.level.toLowerCase() === riskLevel);
         return matchesSearch && matchesType && matchesRisk;
     });
 }
@@ -177,8 +179,8 @@ function sortFiles(files) {
                 return new Date(a.upload_time).getTime() - new Date(b.upload_time).getTime();
             case 'size':
                 return (b.file_size || 0) - (a.file_size || 0);
-            case 'entropy':
-                return (b.entropy_value || 0) - (a.entropy_value || 0);
+            case 'risk':
+                return ((b.risk_assessment?.score || 0) - (a.risk_assessment?.score || 0));
             default:
                 return 0;
         }
@@ -203,6 +205,9 @@ function getAnalysisStatus(file) {
         class: 'bg-gray-500/10 text-gray-400 border border-gray-900/20'
     };
 }
+
+// app/static/js/summery.js
+
 
 // View file details
 function viewFile(md5) {

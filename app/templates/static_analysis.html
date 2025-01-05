@@ -66,8 +66,21 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-base {{ 'text-red-500' if yara_detections else 'text-gray-400' }}">{{ yara_detections }}</td>
-                    <td class="px-6 py-4 text-base text-gray-400">
-                        {{ yara_detections|string + ' rule matches found' if yara_detections else 'No threats detected' }}
+                    <td class="px-6 py-4">
+                        {% if yara_detections %}
+                            <div class="text-base text-gray-400">
+                                {% for match in analysis_results.yara.matches %}
+                                <div class="mb-1">
+                                    Rule: <span class="text-red-400">{{ match.rule }}</span>
+                                    {% if match.metadata %}
+                                        (Severity: {{ match.metadata.severity }})
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="text-base text-gray-400">No threats detected</span>
+                        {% endif %}
                     </td>
                 </tr>
                 <!-- CheckPlz Results Row -->

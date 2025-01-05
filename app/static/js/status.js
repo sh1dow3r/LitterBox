@@ -1,3 +1,5 @@
+// app/static/js/status.js
+
 // Constants
 const CONFIG = {
     notificationDuration: 5000,

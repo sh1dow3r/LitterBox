@@ -48,7 +48,6 @@
             </div>
         </div>
     </div>
-
     <!-- Scanner Results Table -->
     <div class="bg-gray-900/30 rounded-lg border border-gray-800 overflow-hidden">
         <table class="w-full">
@@ -70,8 +69,21 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-base {{ 'text-red-500' if yara_detections else 'text-gray-400' }}">{{ yara_detections }}</td>
-                    <td class="px-6 py-4 text-base text-gray-400">
-                        {{ yara_detections|string + ' rule matches found' if yara_detections else 'No threats detected' }}
+                    <td class="px-6 py-4">
+                        {% if yara_detections %}
+                            <div class="text-base text-gray-400">
+                                {% for match in analysis_results.yara.matches %}
+                                <div class="mb-1">
+                                    Rule: <span class="text-red-400">{{ match.rule }}</span>
+                                    {% if match.metadata %}
+                                        (Severity: {{ match.metadata.severity }})
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="text-base text-gray-400">No threats detected</span>
+                        {% endif %}
                     </td>
                 </tr>
 
@@ -84,8 +96,17 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-base {{ 'text-red-500' if pesieve_detections else 'text-gray-400' }}">{{ pesieve_detections }}</td>
-                    <td class="px-6 py-4 text-base text-gray-400">
-                        {{ pesieve_detections|string + ' suspicious modifications found' if pesieve_detections else 'No modifications detected' }}
+                    <td class="px-6 py-4">
+                        {% if pesieve_detections %}
+                            {% set findings = analysis_results.pe_sieve.findings %}
+                            <div class="text-base text-gray-400">
+                                <div>Implanted: {{ findings.implanted }}</div>
+                                <div>Implanted PE: {{ findings.implanted_pe }}</div>
+                                <div>Implanted shellcode: {{ findings.implanted_shc }}</div>
+                            </div>
+                        {% else %}
+                            <span class="text-base text-gray-400">No modifications detected</span>
+                        {% endif %}
                     </td>
                 </tr>
 
@@ -98,8 +119,32 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-base {{ 'text-red-500' if moneta_detections else 'text-gray-400' }}">{{ moneta_detections }}</td>
-                    <td class="px-6 py-4 text-base text-gray-400">
-                        {{ 'Memory anomalies found' if moneta_detections else 'No anomalies detected' }}
+                    <td class="px-6 py-4">
+                        {% if moneta_detections %}
+                            {% set findings = analysis_results.moneta.findings %}
+                            <div class="text-base text-gray-400">
+                                {% if findings.total_private_rwx > 0 %}
+                                    <div>Private RWX: {{ findings.total_private_rwx }}</div>
+                                {% endif %}
+                                {% if findings.total_private_rx > 0 %}
+                                    <div>Private RX: {{ findings.total_private_rx }}</div>
+                                {% endif %}
+                                {% if findings.total_modified_code > 0 %}
+                                    <div>Modified Code: {{ findings.total_modified_code }}</div>
+                                {% endif %}
+                                {% if findings.total_heap_executable > 0 %}
+                                    <div>Heap Executable: {{ findings.total_heap_executable }}</div>
+                                {% endif %}
+                                {% if findings.total_missing_peb > 0 %}
+                                    <div>Missing PEB: {{ findings.total_missing_peb }}</div>
+                                {% endif %}
+                                {% if findings.total_mismatching_peb > 0 %}
+                                    <div>Mismatching PEB: {{ findings.total_mismatching_peb }}</div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <span class="text-base text-gray-400">No anomalies detected</span>
+                        {% endif %}
                     </td>
                 </tr>
 
@@ -112,8 +157,18 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-base {{ 'text-red-500' if patriot_detections else 'text-gray-400' }}">{{ patriot_detections }}</td>
-                    <td class="px-6 py-4 text-base text-gray-400">
-                        {{ patriot_detections|string + ' suspicious activities found' if patriot_detections else 'No suspicious activities' }}
+                    <td class="px-6 py-4">
+                        {% if patriot_detections %}
+                            <div class="text-base text-gray-400">
+                                {% for finding in analysis_results.patriot.findings.findings %}
+                                    <div class="mb-1">
+                                        {{ finding.type }} ({{ finding.level }})
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="text-base text-gray-400">No suspicious activities</span>
+                        {% endif %}
                     </td>
                 </tr>
 
@@ -126,14 +181,22 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-base {{ 'text-red-500' if hsb_detections else 'text-gray-400' }}">{{ hsb_detections }}</td>
-                    <td class="px-6 py-4 text-base text-gray-400">
-                        {{ 'Suspicious behavior detected' if hsb_detections else 'No suspicious behavior' }}
+                    <td class="px-6 py-4">
+                        {% if hsb_detections %}
+                            <div class="text-base text-gray-400">
+                                {% for detection in analysis_results.hsb.findings.detections %}
+                                    {% for finding in detection.findings %}
+                                        <div class="mb-1">{{ finding.type }} ({{ finding.severity }})</div>
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <span class="text-base text-gray-400">No suspicious behavior</span>
+                        {% endif %}
                     </td>
                 </tr>
             </tbody>
         </table>
     </div>
-
-    <!-- Rest of your existing detailed results code here -->
 </div>
 {% endblock %}

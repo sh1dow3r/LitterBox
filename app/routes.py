@@ -324,6 +324,156 @@ def validate_pid(pid):
         return False, f"Error validating PID: {str(e)}"
 
 
+def get_entropy_risk_level(entropy):
+    if entropy > 7.2:
+        return 'High'
+    elif entropy > 6.8:
+        return 'Medium'
+    return 'Low'
+
+def format_hex(value):
+    if isinstance(value, str) and value.startswith('0x'):
+        return value.lower()
+    try:
+        return f"0x{int(value):x}"
+    except (ValueError, TypeError):
+        return str(value)
+
+def calculate_file_risk(file_info, static_results=None, dynamic_results=None):
+    """
+    Calculate overall file risk score based on all available analysis results.
+    Returns a tuple of (risk_score, risk_factors) where:
+    - risk_score is a float between 0 and 100
+    - risk_factors is a list of contributing risk factors
+    """
+    risk_score = 0
+    risk_factors = []
+    
+    # Base weights for different analysis types
+    WEIGHTS = {
+        'pe_info': 0.3,
+        'static': 0.3,
+        'dynamic': 0.4
+    }
+    
+    # 1. PE Information Risk Calculation
+    if file_info.get('pe_info'):
+        pe_risk = 0
+        pe_info = file_info['pe_info']
+        
+        # Check section entropy
+        high_entropy_sections = 0
+        for section in pe_info.get('sections', []):
+            if section.get('entropy', 0) > 7.2:  # High risk threshold
+                high_entropy_sections += 1
+                risk_factors.append(f"High entropy in section {section.get('name', 'UNKNOWN')}")
+        
+        pe_risk += min(high_entropy_sections * 20, 40)  # Cap at 40 points
+        
+        # Check suspicious imports
+        suspicious_imports = len(pe_info.get('suspicious_imports', []))
+        if suspicious_imports > 0:
+            pe_risk += min(suspicious_imports * 10, 30)  # Cap at 30 points
+            risk_factors.append(f"Found {suspicious_imports} suspicious imports")
+        
+        # Check checksum mismatch
+        if pe_info.get('checksum_info'):
+            checksum = pe_info['checksum_info']
+            if checksum.get('stored_checksum') != checksum.get('calculated_checksum'):
+                pe_risk += 30
+                risk_factors.append("PE checksum mismatch detected")
+        
+        risk_score += (pe_risk / 100) * WEIGHTS['pe_info'] * 100
+
+    # 2. Static Analysis Risk Calculation
+    if static_results:
+        static_risk = 0
+        
+        # YARA detections (static)
+        yara_matches = static_results.get('yara', {}).get('matches', [])
+        unique_yara_rules = len({match.get('rule') for match in yara_matches if match.get('rule')})
+        if unique_yara_rules > 0:
+            static_risk += min(unique_yara_rules * 15, 50)  # Cap at 50 points
+            risk_factors.append(f"Found {unique_yara_rules} YARA rule matches (static)")
+        
+        # CheckPLZ findings
+        checkplz_findings = static_results.get('checkplz', {}).get('findings', {})
+        if checkplz_findings.get('initial_threat'):
+            static_risk += 50
+            risk_factors.append("CheckPLZ detected initial threat indicators")
+        
+        risk_score += (static_risk / 100) * WEIGHTS['static'] * 100
+
+    # 3. Dynamic Analysis Risk Calculation
+    if dynamic_results:
+        dynamic_risk = 0
+        
+        # YARA detections (dynamic)
+        yara_matches = dynamic_results.get('yara', {}).get('matches', [])
+        unique_yara_rules = len({match.get('rule') for match in yara_matches if match.get('rule')})
+        if unique_yara_rules > 0:
+            dynamic_risk += min(unique_yara_rules * 15, 40)  # Cap at 40 points
+            risk_factors.append(f"Found {unique_yara_rules} YARA rule matches (dynamic)")
+        
+        # PE-Sieve detections
+        pesieve_suspicious = int(dynamic_results.get('pe_sieve', {})
+            .get('findings', {}).get('total_suspicious', 0))
+        if pesieve_suspicious > 0:
+            dynamic_risk += min(pesieve_suspicious * 20, 40)  # Cap at 40 points
+            risk_factors.append(f"PE-Sieve found {pesieve_suspicious} suspicious indicators")
+        
+        # Moneta memory anomalies
+        moneta_findings = dynamic_results.get('moneta', {}).get('findings', {})
+        memory_anomalies = sum([
+            int(moneta_findings.get('total_private_rwx', 0) or 0),
+            int(moneta_findings.get('total_private_rx', 0) or 0),
+            int(moneta_findings.get('total_modified_code', 0) or 0),
+            int(moneta_findings.get('total_heap_executable', 0) or 0),
+            int(moneta_findings.get('total_modified_pe_header', 0) or 0),
+            int(moneta_findings.get('total_inconsistent_x', 0) or 0),
+            int(moneta_findings.get('total_missing_peb', 0) or 0),
+            int(moneta_findings.get('total_mismatching_peb', 0) or 0)
+        ])
+        if memory_anomalies > 0:
+            dynamic_risk += min(memory_anomalies * 10, 30)  # Cap at 30 points
+            risk_factors.append(f"Found {memory_anomalies} memory anomalies")
+        
+        # Patriot detections
+        patriot_findings = len(dynamic_results.get('patriot', {})
+            .get('findings', {}).get('findings', []))
+        if patriot_findings > 0:
+            dynamic_risk += min(patriot_findings * 15, 30)  # Cap at 30 points
+            risk_factors.append(f"Found {patriot_findings} suspicious behaviors")
+        
+        # HSB detections
+        hsb_findings = dynamic_results.get('hsb', {}).get('findings', {})
+        if hsb_findings and hsb_findings.get('detections'):
+            hsb_detections = len(hsb_findings['detections'][0].get('findings', []))
+            if hsb_detections > 0:
+                dynamic_risk += min(hsb_detections * 20, 40)  # Cap at 40 points
+                risk_factors.append(f"Found {hsb_detections} HSB detections")
+        
+        risk_score += (dynamic_risk / 100) * WEIGHTS['dynamic'] * 100
+    
+    # Normalize final score to 0-100 range and round to 2 decimal places
+    risk_score = round(min(max(risk_score, 0), 100), 2)
+    
+    return risk_score, risk_factors
+
+def get_risk_level(risk_score):
+    """
+    Convert numerical risk score to categorical risk level
+    """
+    if risk_score >= 75:
+        return "Critical"
+    elif risk_score >= 50:
+        return "High"
+    elif risk_score >= 25:
+        return "Medium"
+    else:
+        return "Low"
+
+
 def register_routes(app):
     analysis_manager = AnalysisManager(app.config)
 
@@ -423,9 +573,62 @@ def register_routes(app):
             
             with open(file_info_path, 'r') as f:
                 file_info = json.load(f)
+                
+            # Load static and dynamic results if they exist
+            static_results = None
+            dynamic_results = None
+            
+            static_path = os.path.join(result_path, 'static_analysis_results.json')
+            if os.path.exists(static_path):
+                with open(static_path, 'r') as f:
+                    static_results = json.load(f)
+                    
+            dynamic_path = os.path.join(result_path, 'dynamic_analysis_results.json')
+            if os.path.exists(dynamic_path):
+                with open(dynamic_path, 'r') as f:
+                    dynamic_results = json.load(f)
+            
+            # Calculate overall risk
+            risk_score, risk_factors = calculate_file_risk(file_info, static_results, dynamic_results)
+            risk_level = get_risk_level(risk_score)
+            
+            # Add risk information to file_info
+            file_info['risk_assessment'] = {
+                'score': risk_score,
+                'level': risk_level,
+                'factors': risk_factors
+            }
+
 
             if analysis_type == 'info':
-                return render_template('file_info.html', file_info=file_info)
+                # Add helper data for the template
+                if 'pe_info' in file_info:
+                    # Calculate section entropy risk levels
+                    for section in file_info['pe_info']['sections']:
+                        section['entropy_risk'] = get_entropy_risk_level(section['entropy'])
+                    
+                    # Group suspicious imports by DLL
+                    grouped_imports = {}
+                    for imp in file_info['pe_info'].get('suspicious_imports', []):
+                        dll = imp['dll']
+                        if dll not in grouped_imports:
+                            grouped_imports[dll] = []
+                        grouped_imports[dll].append(imp)
+                    file_info['pe_info']['grouped_suspicious_imports'] = grouped_imports
+
+                    # Format checksum values
+                    if 'checksum_info' in file_info['pe_info']:
+                        checksum = file_info['pe_info']['checksum_info']
+                        checksum['stored_checksum'] = format_hex(checksum['stored_checksum'])
+                        checksum['calculated_checksum'] = format_hex(checksum['calculated_checksum'])
+
+                return render_template('file_info.html', 
+                                    file_info=file_info,
+                                    entropy_risk_levels={
+                                        'High': 7.2,
+                                        'Medium': 6.8,
+                                        'Low': 0
+                                    })
                 
             elif analysis_type in ['static', 'dynamic']:
                 results_file = f'{analysis_type}_analysis_results.json'
@@ -437,30 +640,29 @@ def register_routes(app):
                     analysis_results = json.load(f)
 
                 if analysis_type == 'static':
-                    # Calculate detection counts for static analysis with safe defaults
+                    # Calculate detection counts for static analysis with safe defaults and proper error handling
                     try:
                         yara_matches = analysis_results.get('yara', {}).get('matches', [])
-                        yara_detections = len(yara_matches) if yara_matches is not None else 0
-                    except:
+                        yara_detections = len({match.get('rule') for match in yara_matches}) if isinstance(yara_matches, list) else 0
+                    except (TypeError, ValueError):
                         yara_detections = 0
 
-                    try:
-                        checkplz_findings = analysis_results.get('checkplz', {}).get('findings', {})
-                        checkplz_detections = 1 if checkplz_findings and checkplz_findings.get('initial_threat') else 0
-                    except:
-                        checkplz_detections = 0
+                    checkplz_detections = 0
+                    checkplz_findings = analysis_results.get('checkplz', {}).get('findings', {})
+                    if isinstance(checkplz_findings, dict):
+                        checkplz_detections = 1 if checkplz_findings.get('initial_threat') else 0
 
-                    # Format scan duration as MM:SS.mmm
+                    # Format scan duration with proper error handling
+                    formatted_duration = "00:00.000"
                     try:
-                        scan_duration = analysis_results.get('checkplz', {}).get('findings', {}).get('scan_results', {}).get('scan_duration', 0)
-                        if scan_duration is None:
-                            scan_duration = 0
+                        scan_duration = float(analysis_results.get('checkplz', {}).get('findings', {})
+                                           .get('scan_results', {}).get('scan_duration', 0))
                         minutes = int(scan_duration // 60)
                         seconds = int(scan_duration % 60)
                         milliseconds = int((scan_duration % 1) * 1000)
                         formatted_duration = f"{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
-                    except:
-                        formatted_duration = "00:00.000"
+                    except (TypeError, ValueError, AttributeError):
+                        pass
 
                     return render_template('static_analysis.html',
                                          file_info=file_info,
@@ -470,26 +672,62 @@ def register_routes(app):
                                          scan_duration=formatted_duration)
                 
                 elif analysis_type == 'dynamic':
-                    # Calculate detection counts for dynamic analysis
-                    yara_detections = len(analysis_results.get('yara', {}).get('matches', [])) if analysis_results.get('yara') else 0
-                    pesieve_detections = analysis_results.get('pe_sieve', {}).get('findings', {}).get('total_suspicious', 0)
-                    moneta_detections = (
-                        analysis_results.get('moneta', {}).get('findings', {}).get('total_private_rwx', 0) +
-                        analysis_results.get('moneta', {}).get('findings', {}).get('total_abnormal_private_exec', 0)
-                    )
-                    patriot_detections = len(analysis_results.get('patriot', {}).get('findings', {}).get('findings', []))
-                    hsb_detections = analysis_results.get('hsb', {}).get('findings', {}).get('summary', {}).get('total_findings', 0)
+                    # YARA: Count unique rule matches
+                    try:
+                        yara_matches = analysis_results.get('yara', {}).get('matches', [])
+                        yara_detections = len({match.get('rule') for match in yara_matches}) if yara_matches else 0
+                    except (TypeError, ValueError):
+                        yara_detections = 0
+
+                    # PE-Sieve: Get total suspicious count
+                    try:
+                        pesieve_findings = analysis_results.get('pe_sieve', {}).get('findings', {})
+                        pesieve_detections = int(pesieve_findings.get('total_suspicious', 0) or 0)
+                    except (TypeError, ValueError):
+                        pesieve_detections = 0
+
+                    # Moneta: Count memory anomalies including PEB violations
+                    try:
+                        moneta_findings = analysis_results.get('moneta', {}).get('findings', {})
+                        moneta_detections = sum([
+                            int(moneta_findings.get('total_private_rwx', 0) or 0),
+                            int(moneta_findings.get('total_private_rx', 0) or 0),
+                            int(moneta_findings.get('total_modified_code', 0) or 0),
+                            int(moneta_findings.get('total_heap_executable', 0) or 0),
+                            int(moneta_findings.get('total_modified_pe_header', 0) or 0),
+                            int(moneta_findings.get('total_inconsistent_x', 0) or 0),
+                            int(moneta_findings.get('total_missing_peb', 0) or 0),
+                            int(moneta_findings.get('total_mismatching_peb', 0) or 0)
+                        ])
+                    except (TypeError, ValueError):
+                        moneta_detections = 0
+
+                    # Patriot: Get findings directly from findings array length
+                    try:
+                        patriot_findings = analysis_results.get('patriot', {}).get('findings', {}).get('findings', [])
+                        patriot_detections = len(patriot_findings) if isinstance(patriot_findings, list) else 0
+                    except (TypeError, ValueError):
+                        patriot_detections = 0
+
+                    # HSB: Count findings from severity counts and add any findings in the detections array
+                    # HSB: Get total findings directly from detections[0]
+                    try:
+                        hsb_findings = analysis_results.get('hsb', {}).get('findings', {})
+                        if hsb_findings and hsb_findings.get('detections'):
+                            hsb_detections = len(hsb_findings['detections'][0].get('findings', []))
+                        else:
+                            hsb_detections = 0
+                    except (TypeError, ValueError, IndexError):
+                        hsb_detections = 0
 
                     return render_template('dynamic_analysis.html',
-                                        file_info=file_info,
-                                        analysis_results=analysis_results,
-                                        yara_detections=yara_detections,
-                                        pesieve_detections=pesieve_detections,
-                                        moneta_detections=moneta_detections,
-                                        patriot_detections=patriot_detections,
-                                        hsb_detections=hsb_detections)
-
-            return render_template('error.html', error='Invalid analysis type'), 400
+                                         file_info=file_info,
+                                         analysis_results=analysis_results,
+                                         yara_detections=yara_detections,
+                                         pesieve_detections=pesieve_detections,
+                                         moneta_detections=moneta_detections,
+                                         patriot_detections=patriot_detections,
+                                         hsb_detections=hsb_detections)
 
         except Exception as e:
             return render_template('error.html', error=str(e)), 500
@@ -646,8 +884,7 @@ def register_routes(app):
                 'issues': [str(e)]
             }), 500
 
-    @app.route('/summary')
-    @app.route('/summary.html')
+    @app.route('/summary', methods=['GET'])
     def summary_page():
         """Route for the summary page"""
         return render_template('summary.html')
@@ -657,24 +894,37 @@ def register_routes(app):
         try:
             results_dir = app.config['upload']['result_folder']
             summary = {}
-
             # Iterate through all subdirectories in the results folder
             for md5_dir in os.listdir(results_dir):
                 dir_path = os.path.join(results_dir, md5_dir)
                 if not os.path.isdir(dir_path):
                     continue
-
+                    
                 # Read file_info.json
                 file_info_path = os.path.join(dir_path, 'file_info.json')
                 if not os.path.exists(file_info_path):
                     continue
-
+                
                 with open(file_info_path, 'r') as f:
                     file_info = json.load(f)
 
-                # Check for existence of analysis results
-                static_exists = os.path.exists(os.path.join(dir_path, 'static_analysis_results.json'))
-                dynamic_exists = os.path.exists(os.path.join(dir_path, 'dynamic_analysis_results.json'))
+                # Load static analysis results if they exist
+                static_results = None
+                static_path = os.path.join(dir_path, 'static_analysis_results.json')
+                if os.path.exists(static_path):
+                    with open(static_path, 'r') as f:
+                        static_results = json.load(f)
+
+                # Load dynamic analysis results if they exist
+                dynamic_results = None
+                dynamic_path = os.path.join(dir_path, 'dynamic_analysis_results.json')
+                if os.path.exists(dynamic_path):
+                    with open(dynamic_path, 'r') as f:
+                        dynamic_results = json.load(f)
+
+                # Calculate risk score using our comprehensive function
+                risk_score, risk_factors = calculate_file_risk(file_info, static_results, dynamic_results)
+                risk_level = get_risk_level(risk_score)
 
                 # Create summary for this file
                 summary[md5_dir] = {
@@ -686,8 +936,14 @@ def register_routes(app):
                     'result_dir_full_path': os.path.abspath(dir_path),
                     'entropy_value': file_info.get('entropy_analysis', {}).get('value', 0),
                     'detection_risk': file_info.get('entropy_analysis', {}).get('detection_risk', 'Unknown'),
-                    'has_static_analysis': static_exists,
-                    'has_dynamic_analysis': dynamic_exists
+                    'has_static_analysis': os.path.exists(static_path),
+                    'has_dynamic_analysis': os.path.exists(dynamic_path),
+                    # Add the new risk assessment
+                    'risk_assessment': {
+                        'score': risk_score,
+                        'level': risk_level,
+                        'factors': risk_factors
+                    }
                 }
 
             return jsonify({
@@ -695,7 +951,6 @@ def register_routes(app):
                 'count': len(summary),
                 'files': summary
             })
-
         except Exception as e:
             return jsonify({
                 'status': 'error',
