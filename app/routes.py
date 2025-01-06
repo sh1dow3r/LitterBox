@@ -192,7 +192,11 @@ def register_routes(app):
                 app.logger.debug("Successfully loaded dynamic analysis results")
 
                 # Calculate risk
-                risk_score, risk_factors = utils.calculate_process_risk(dynamic_results)
+                # Calculate risk using new unified function
+                risk_score, risk_factors = utils.calculate_risk(
+                    analysis_type='process',
+                    dynamic_results=dynamic_results
+                )
                 risk_level = utils.get_risk_level(risk_score)
                 app.logger.debug(f"Calculated risk assessment - Score: {risk_score}, Level: {risk_level}")
 
@@ -252,7 +256,13 @@ def register_routes(app):
             app.logger.debug(f"Static results loaded: {bool(static_results)}, Dynamic results loaded: {bool(dynamic_results)}")
 
             # Calculate risk
-            risk_score, risk_factors = utils.calculate_file_risk(file_info, static_results, dynamic_results)
+            # Calculate risk using new unified function
+            risk_score, risk_factors = utils.calculate_risk(
+                analysis_type='file',
+                file_info=file_info,
+                static_results=static_results,
+                dynamic_results=dynamic_results
+            )
             risk_level = utils.get_risk_level(risk_score)
             app.logger.debug(f"Calculated file risk assessment - Score: {risk_score}, Level: {risk_level}")
 
@@ -787,7 +797,6 @@ def register_routes(app):
             return jsonify({'error': str(e)}), 500
 
 
-
     @app.route('/api/results/<target>/dynamic', methods=['GET'])
     def api_dynamic_results(target):
         try:
@@ -837,6 +846,5 @@ def register_routes(app):
         except Exception as e:
             app.logger.error(f"Error fetching file info for target {target}: {e}")
             return jsonify({'error': str(e)}), 500
-
 
     return app
