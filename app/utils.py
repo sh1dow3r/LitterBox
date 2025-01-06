@@ -1,4 +1,4 @@
-# app/helpers.py
+# app/utils.py
 
 import datetime
 import glob
@@ -827,3 +827,67 @@ class Utils:
             return "Medium"
         else:
             return "Low"
+
+
+    def load_json_file(self, filepath):
+        """Helper function to safely load JSON files"""
+        if not os.path.exists(filepath):
+            return None
+        try:
+            with open(filepath, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            app.logger.error(f"Error loading JSON file {filepath}: {str(e)}")
+            return None
+
+    def extract_detection_counts(self, results):
+        """Extract all detection counts from analysis results"""
+        counts = {
+            'yara': 0,
+            'pesieve': 0,
+            'moneta': 0,
+            'patriot': 0,
+            'hsb': 0
+        }
+
+        try:
+            yara_matches = results.get('yara', {}).get('matches', [])
+            counts['yara'] = len({match.get('rule') for match in yara_matches if match.get('rule')}) if isinstance(yara_matches, list) else 0
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            pesieve_findings = results.get('pe_sieve', {}).get('findings', {})
+            counts['pesieve'] = int(pesieve_findings.get('total_suspicious', 0) or 0)
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            moneta_findings = results.get('moneta', {}).get('findings', {})
+            counts['moneta'] = sum([
+                int(moneta_findings.get('total_private_rwx', 0) or 0),
+                int(moneta_findings.get('total_private_rx', 0) or 0),
+                int(moneta_findings.get('total_modified_code', 0) or 0),
+                int(moneta_findings.get('total_heap_executable', 0) or 0),
+                int(moneta_findings.get('total_modified_pe_header', 0) or 0),
+                int(moneta_findings.get('total_inconsistent_x', 0) or 0),
+                int(moneta_findings.get('total_missing_peb', 0) or 0),
+                int(moneta_findings.get('total_mismatching_peb', 0) or 0)
+            ])
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            patriot_findings = results.get('patriot', {}).get('findings', {}).get('findings', [])
+            counts['patriot'] = len(patriot_findings) if isinstance(patriot_findings, list) else 0
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            hsb_findings = results.get('hsb', {}).get('findings', {})
+            if hsb_findings and hsb_findings.get('detections'):
+                counts['hsb'] = len(hsb_findings['detections'][0].get('findings', []))
+        except (TypeError, ValueError, IndexError):
+            pass
+
+        return counts

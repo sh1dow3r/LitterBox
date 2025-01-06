@@ -1,25 +1,42 @@
 import os
+import sys
 import ctypes
-from app import create_app
+import argparse
+from app import create_app, setup_logging  
 
 def is_running_as_admin():
     """Check if the script is running with administrative privileges."""
     try:
-        # Windows-specific check for admin privileges
         return ctypes.windll.shell32.IsUserAnAdmin() != 0
     except AttributeError:
-        # Non-Windows systems will not have IsUserAnAdmin
-        return os.geteuid() == 0  # Unix/Linux admin check (root user)
+        return os.geteuid() == 0
 
-app = create_app()
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    args = parser.parse_args()
 
-if __name__ == '__main__':
     if not is_running_as_admin():
-        print("[!] This script requires administrative privileges. Please run as an administrator.")
-        exit(1)
+        print("[!] This script requires administrative privileges. Please run as administrator.")
+        sys.exit(1)
 
+    app = create_app()
+    
+    # Enable debug mode based on the `--debug` flag
+    if args.debug:
+        app.config['DEBUG'] = True
+        app.config['application']['debug'] = True  # Optional if your custom config also uses it
+
+    # Set up logging based on the debug mode
+    setup_logging(app)
+    # Run the app
     app.run(
         host=app.config['application']['host'],
         port=app.config['application']['port'],
-        debug=app.config['application']['debug']
+        debug=app.config['DEBUG']  # Flask debug mode
     )
+
+
+
+if __name__ == '__main__':
+    main()

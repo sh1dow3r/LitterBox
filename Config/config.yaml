@@ -3,7 +3,7 @@ application:
   name: "LitterBox"
   host: "127.0.0.1"
   port: 1337
-  debug: true
+  debug: false
 
 upload:
   allowed_extensions:
